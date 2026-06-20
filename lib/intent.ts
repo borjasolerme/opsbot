@@ -30,26 +30,31 @@ export const intentOptions: Array<{
   id: IntentId;
   label: string;
   helper: string;
+  request: string;
 }> = [
   {
     id: "check_in",
     label: "Check-in",
-    helper: "Arrival desk"
+    helper: "Arrival desk",
+    request: "I need to check in for the event."
   },
   {
     id: "lost_item",
     label: "Lost item",
-    helper: "Staff handoff"
+    helper: "Staff handoff",
+    request: "I found a lost item and need to hand it to staff."
   },
   {
     id: "charger_request",
     label: "Charger request",
-    helper: "Accessories table"
+    helper: "Accessories table",
+    request: "I need help finding a charger."
   },
   {
     id: "demo_schedule",
     label: "Demo schedule",
-    helper: "Stage timing"
+    helper: "Stage timing",
+    request: "I want to know when demos happen."
   }
 ];
 

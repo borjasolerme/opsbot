@@ -168,13 +168,14 @@ export function OpsBotConsole() {
   }, [requestState]);
   const isBusy = requestState === "calling" || requestState === "listening";
 
-  async function handleIntent(intent: IntentId) {
-    setLastIntent(intent);
+  async function handleIntent(option: (typeof intentOptions)[number]) {
+    setLastIntent(option.id);
 
     try {
       setRequestState("listening");
       await requestOpsBot({
-        intent,
+        intent: option.id,
+        message: option.request,
         ...(await captureInteractionMedia(interhumanMinimumClipMs))
       });
     } catch {
@@ -430,7 +431,7 @@ export function OpsBotConsole() {
                   )}
                   disabled={isBusy}
                   key={option.id}
-                  onClick={() => handleIntent(option.id)}
+                  onClick={() => handleIntent(option)}
                   type="button"
                   variant="secondary"
                 >
