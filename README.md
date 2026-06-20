@@ -111,14 +111,6 @@ npm audit --omit=dev
 - shadcn/ui for the local Button primitive.
 - Nice Design tokens are mapped into Tailwind CSS variables in `app/globals.css`.
 
-## Important Constraints
-
-- Fixed table only.
-- Robot does not move between rooms.
-- Any phone can be the robot face/speaker/UI through the web app.
-- Robot hardware action is mocked first.
-- Cyberwave, ScrapeGraph, and Interhuman come after the basic loop works.
-
 ## Starter Docs
 
 These are starter references for anyone who wants to connect OpsBot to event extraction, realtime social-signal analysis, robot hardware, or Supabase Edge Functions.

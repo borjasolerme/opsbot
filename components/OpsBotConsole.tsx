@@ -30,6 +30,17 @@ const intentIcons: Record<IntentId, ComponentType<{ className?: string }>> = {
   demo_schedule: Clock3
 };
 
+const intentGradients: Record<IntentId, string> = {
+  check_in:
+    "before:bg-[radial-gradient(circle_at_92%_28%,rgba(40,169,72,0.22),transparent_30%),radial-gradient(circle_at_78%_78%,rgba(0,227,196,0.18),transparent_34%),linear-gradient(to_left,rgba(0,107,255,0.10),transparent_78%)]",
+  lost_item:
+    "before:bg-[radial-gradient(circle_at_92%_28%,rgba(242,39,130,0.18),transparent_30%),radial-gradient(circle_at_78%_78%,rgba(160,0,248,0.16),transparent_34%),linear-gradient(to_left,rgba(0,107,255,0.10),transparent_78%)]",
+  charger_request:
+    "before:bg-[radial-gradient(circle_at_92%_28%,rgba(255,147,0,0.22),transparent_30%),radial-gradient(circle_at_78%_78%,rgba(76,225,94,0.16),transparent_34%),linear-gradient(to_left,rgba(255,197,67,0.12),transparent_78%)]",
+  demo_schedule:
+    "before:bg-[radial-gradient(circle_at_92%_28%,rgba(0,107,255,0.18),transparent_30%),radial-gradient(circle_at_78%_78%,rgba(201,121,255,0.16),transparent_34%),linear-gradient(to_left,rgba(0,227,196,0.10),transparent_78%)]"
+};
+
 export function OpsBotConsole() {
   const [reply, setReply] = useState("Tap a request to ask OpsBot.");
   const [robotAction, setRobotAction] = useState<IntentResponse["robot_action"]>("idle");
@@ -138,7 +149,8 @@ export function OpsBotConsole() {
               return (
                 <Button
                   className={cn(
-                    "h-16 justify-start gap-3 border px-3 text-left transition-transform active:translate-y-px",
+                    "relative h-16 justify-start gap-3 overflow-hidden border bg-background px-3 text-left transition-transform before:pointer-events-none before:absolute before:inset-0 before:content-[''] before:[mask-image:linear-gradient(to_left,black_0%,black_42%,transparent_100%)] hover:bg-background active:translate-y-px",
+                    intentGradients[option.id],
                     lastIntent === option.id && "border-ring bg-blue-50 hover:bg-blue-50"
                   )}
                   disabled={requestState === "calling"}
@@ -147,8 +159,8 @@ export function OpsBotConsole() {
                   type="button"
                   variant="secondary"
                 >
-                  <Icon className="text-muted-foreground" aria-hidden="true" />
-                  <span className="flex min-w-0 flex-col">
+                  <Icon className="relative z-10 text-muted-foreground" aria-hidden="true" />
+                  <span className="relative z-10 flex min-w-0 flex-col">
                     <span className="truncate text-base font-medium leading-5">{option.label}</span>
                     <span className="truncate text-[13px] font-normal leading-4 text-muted-foreground">
                       {option.helper}
