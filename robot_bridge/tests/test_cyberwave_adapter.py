@@ -59,19 +59,19 @@ class CyberwaveAdapterTest(unittest.TestCase):
     def test_demo_scene_positions_cover_each_front_desk_area(self) -> None:
         self.assertEqual(
             SCENE_POSITIONS_BY_ACTION["point_checkin"],
-            {"x": -0.35, "y": 0.3, "z": 0.0},
+            {"x": -2.0, "y": 1.4, "z": 0.0},
         )
         self.assertEqual(
             SCENE_POSITIONS_BY_ACTION["point_lost_found"],
-            {"x": 0.35, "y": 0.3, "z": 0.0},
+            {"x": 2.0, "y": 1.4, "z": 0.0},
         )
         self.assertEqual(
             SCENE_POSITIONS_BY_ACTION["point_charger"],
-            {"x": -0.35, "y": -0.3, "z": 0.0},
+            {"x": -2.0, "y": -1.4, "z": 0.0},
         )
         self.assertEqual(
             SCENE_POSITIONS_BY_ACTION["point_demo_queue"],
-            {"x": 0.35, "y": -0.3, "z": 0.0},
+            {"x": 2.0, "y": -1.4, "z": 0.0},
         )
 
     def test_robot_mode_prefers_robot_mode_env(self) -> None:

@@ -17,10 +17,10 @@ SCENE_YAWS_BY_ACTION = {
     "idle": 0.0,
 }
 SCENE_POSITIONS_BY_ACTION = {
-    "point_checkin": {"x": -0.35, "y": 0.3, "z": 0.0},
-    "point_lost_found": {"x": 0.35, "y": 0.3, "z": 0.0},
-    "point_charger": {"x": -0.35, "y": -0.3, "z": 0.0},
-    "point_demo_queue": {"x": 0.35, "y": -0.3, "z": 0.0},
+    "point_checkin": {"x": -2.0, "y": 1.4, "z": 0.0},
+    "point_lost_found": {"x": 2.0, "y": 1.4, "z": 0.0},
+    "point_charger": {"x": -2.0, "y": -1.4, "z": 0.0},
+    "point_demo_queue": {"x": 2.0, "y": -1.4, "z": 0.0},
     "idle": {"x": 0.0, "y": 0.0, "z": 0.0},
 }
 _LAST_SCENE_YAW: float | None = None
@@ -164,7 +164,7 @@ def _apply_scene_demo_pose(robot: Any, action: str) -> None:
 def _nudge_scene_position(robot: Any, target_position: dict[str, float]) -> None:
     global _SCENE_NUDGE_DIRECTION
 
-    nudge = float(os.getenv("CYBERWAVE_SCENE_POSITION_NUDGE", "0.25"))
+    nudge = float(os.getenv("CYBERWAVE_SCENE_POSITION_NUDGE", "0.75"))
     delay = float(os.getenv("CYBERWAVE_SCENE_POSITION_NUDGE_DELAY", "0.18"))
     nudged_position = {
         **target_position,

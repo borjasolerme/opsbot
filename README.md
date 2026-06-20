@@ -191,10 +191,10 @@ Current UGV Beast action mapping:
 
 | OpsBot action | Cyberwave commands |
 | --- | --- |
-| `point_checkin` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_up`, scene pose `x=-0.35 y=0.3 yaw=-18` |
-| `point_lost_found` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_up`, scene pose `x=0.35 y=0.3 yaw=18` |
-| `point_charger` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_down`, scene pose `x=-0.35 y=-0.3 yaw=-30` |
-| `point_demo_queue` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_down`, scene pose `x=0.35 y=-0.3 yaw=30` |
+| `point_checkin` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_up`, scene pose `x=-2.0 y=1.4 yaw=-18` |
+| `point_lost_found` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_up`, scene pose `x=2.0 y=1.4 yaw=18` |
+| `point_charger` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_down`, scene pose `x=-2.0 y=-1.4 yaw=-30` |
+| `point_demo_queue` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_down`, scene pose `x=2.0 y=-1.4 yaw=30` |
 | `wave` | stop, center camera, small left/right/center chassis gesture |
 | `idle` | `stop` |
 
