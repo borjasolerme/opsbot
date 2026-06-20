@@ -142,8 +142,8 @@ export function OpsBotConsole() {
               return (
                 <Button
                   className={cn(
-                    "h-[92px] w-full justify-start gap-4 rounded-[18px] border border-border bg-background px-4 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[#ff5a5f]/20 hover:bg-[#f7f7f7] hover:shadow-[0_12px_24px_-22px_rgba(0,0,0,0.55)] active:translate-y-px [&_svg]:size-6",
-                    lastIntent === option.id && "border-[#ff5a5f]/25 bg-[#f7f7f7]"
+                    "h-[92px] w-full justify-start gap-4 rounded-[18px] border border-border bg-background px-4 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] hover:border-[#c9c9c9] hover:bg-background hover:shadow-[0_12px_24px_-22px_rgba(0,0,0,0.55)] active:translate-y-px [&_svg]:size-6",
+                    lastIntent === option.id && "border-foreground bg-background"
                   )}
                   disabled={requestState === "calling"}
                   key={option.id}
