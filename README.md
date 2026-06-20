@@ -16,7 +16,7 @@ OpsBot is a fixed-table AI front desk for coworkings and events. Visitors intera
 - UI/audio: iPhone web app + browser speech synthesis
 - ScrapeGraph: event/schedule extraction
 - Interhuman: realtime empathy/social-signal layer
-- Cyberwave: robot/arm/servo/camera integration
+- Cyberwave: one selected robot target, either UGV Beast Rover or Unitree Go2
 
 ## MVP Flow
 
@@ -75,10 +75,8 @@ These are starter references for anyone who wants to connect OpsBot to event ext
 
 - Docs: https://docs.cyberwave.com
 - Quickstart: https://docs.cyberwave.com/overview
-- SO101 robot arm: https://docs.cyberwave.com/hardware/so101
 - UGV Beast Rover: https://docs.cyberwave.com/hardware/ugv/index
 - Unitree Go2 dog robot: https://docs.cyberwave.com/hardware/go2/index
-- Camera integration: https://docs.cyberwave.com/hardware/camera/index
 
 ### ScrapeGraph
 

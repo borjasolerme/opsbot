@@ -4,23 +4,22 @@ These are starter references for anyone who wants to connect OpsBot to event ext
 
 ## Cyberwave
 
+OpsBot should target one selected robot:
+
+- UGV Beast Rover
+- Unitree Go2 dog robot
+
 Docs:
 https://docs.cyberwave.com
 
 Quickstart:
 https://docs.cyberwave.com/overview
 
-SO101 robot arm:
-https://docs.cyberwave.com/hardware/so101
-
 UGV Beast Rover:
 https://docs.cyberwave.com/hardware/ugv/index
 
 Unitree Go2 dog robot:
 https://docs.cyberwave.com/hardware/go2/index
-
-Camera integration:
-https://docs.cyberwave.com/hardware/camera/index
 
 ## ScrapeGraph
 

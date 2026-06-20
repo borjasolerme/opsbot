@@ -17,7 +17,7 @@ iPhone web app
 
 - ScrapeGraph extracts event and schedule information.
 - Interhuman adds realtime empathy and social-signal analysis.
-- Cyberwave connects mocked robot actions to real hardware.
+- Cyberwave connects mocked robot actions to one selected robot: UGV Beast Rover or Unitree Go2.
 - Supabase hosts Edge Functions and Postgres logs.
 
 ## Constraints
