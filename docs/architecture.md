@@ -13,7 +13,7 @@ iPhone Safari UI
   -> Cyberwave robot integration later
 ```
 
-## Partner Roles
+## Integration Notes
 
 - ScrapeGraph extracts event and schedule information.
 - Interhuman adds realtime empathy and social-signal analysis.

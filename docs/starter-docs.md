@@ -1,9 +1,8 @@
-# Partner Docs
+# Starter Docs
+
+These are starter references for anyone who wants to connect OpsBot to event extraction, realtime social-signal analysis, robot hardware, or Supabase Edge Functions.
 
 ## Cyberwave
-
-Platform signup:
-https://cyberwave.com/signup?code=hackathon-builder
 
 Docs:
 https://docs.cyberwave.com

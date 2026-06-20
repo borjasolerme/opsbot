@@ -8,12 +8,6 @@ OpsBot is a physical AI front desk for coworkings and events: it reads live even
 
 OpsBot is a fixed-table AI front desk for coworkings and events. Visitors interact through an iPhone. The system answers questions, reads event info, logs actions, and later triggers simple robot actions like pointing, waving, or pushing a card.
 
-## Tracks
-
-- Cyberwave
-- ScrapeGraph AI
-- Interhuman AI
-
 ## Stack
 
 - Frontend: Next.js + TypeScript
@@ -75,11 +69,12 @@ Robot action is mocked first, then connected to Cyberwave
 - Robot hardware action is mocked first.
 - Do not implement the app yet; create only repo structure and README files.
 
-## Partner Docs
+## Starter Docs
+
+These are starter references for anyone who wants to connect OpsBot to event extraction, realtime social-signal analysis, robot hardware, or Supabase Edge Functions.
 
 ### Cyberwave
 
-- Platform signup: https://cyberwave.com/signup?code=hackathon-builder
 - Docs: https://docs.cyberwave.com
 - Quickstart: https://docs.cyberwave.com/overview
 - SO101 robot arm: https://docs.cyberwave.com/hardware/so101
@@ -124,5 +119,5 @@ opsbot/
   docs/
     architecture.md
     demo-script.md
-    partner-docs.md
+    starter-docs.md
 ```

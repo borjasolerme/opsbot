@@ -6,7 +6,7 @@ Supabase backend layer for Edge Functions, Postgres logs, and later integration 
 
 - Edge Function endpoint for visitor intent handling.
 - Postgres tables for action and interaction logs.
-- Service-side integration point for ScrapeGraph, Interhuman, and Cyberwave.
+- Service-side integration point for external services such as ScrapeGraph, Interhuman, and Cyberwave.
 
 ## Current Status
 
