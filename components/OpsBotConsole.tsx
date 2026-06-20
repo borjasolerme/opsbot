@@ -36,6 +36,14 @@ type RequestState =
   | "error";
 type ConversationTurn = { role: "user" | "assistant"; content: string };
 type PipelineStatus = "idle" | "active" | "done" | "failed" | "skipped";
+type PipelineStepId =
+  | "standby"
+  | "capture"
+  | "scrapegraph"
+  | "interhuman"
+  | "cyberwave"
+  | "reply"
+  | "error";
 type InteractionMedia = {
   media_base64: string;
   media_mime_type: string;
@@ -173,6 +181,7 @@ export function OpsBotConsole() {
   const [cameraPreviewStream, setCameraPreviewStream] = useState<MediaStream | null>(null);
   const [interhumanSummary, setInterhumanSummary] = useState<InterhumanSummary | null>(null);
   const [hasPipelineResult, setHasPipelineResult] = useState(false);
+  const [pipelineStep, setPipelineStep] = useState<PipelineStepId>("standby");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -188,53 +197,6 @@ export function OpsBotConsole() {
   }, [requestState]);
   const isBusy = requestState === "calling" || requestState === "listening";
   const primarySignal = interhumanSummary?.primary_signal;
-  const pipelineLabel = useMemo(() => {
-    if (requestState === "listening") return "Now: Capturing clip";
-    if (requestState === "calling") return "Now: Edge processing";
-    if (requestState === "error") return "Now: Failed";
-    if (requestState === "speaking") return "Now: Speaking reply";
-    if (hasPipelineResult) return "Now: Response ready";
-    return "Now: Standby";
-  }, [hasPipelineResult, requestState]);
-  const pipelineSteps = useMemo(() => {
-    const isProcessing = requestState === "calling";
-    const isFailed = requestState === "error";
-    const resultStatus = isFailed ? "failed" : hasPipelineResult ? "done" : "idle";
-    const interhumanStatus =
-      interhumanSummary?.status === "analyzed"
-        ? "done"
-        : interhumanSummary?.status === "failed"
-          ? "failed"
-          : interhumanSummary?.status === "skipped"
-            ? "skipped"
-            : resultStatus;
-    const cyberwaveStatus =
-      robotStatus === "sent"
-        ? "done"
-        : robotStatus === "failed"
-          ? "failed"
-          : robotStatus === "skipped" && hasPipelineResult
-            ? "skipped"
-            : resultStatus;
-
-    return [
-      {
-        label: "Interhuman",
-        helper: "signal",
-        status: isProcessing ? "active" : interhumanStatus
-      },
-      {
-        label: "ScrapeGraph",
-        helper: "context",
-        status: isProcessing ? "active" : resultStatus
-      },
-      {
-        label: "Cyberwave",
-        helper: "robot",
-        status: isProcessing ? "active" : cyberwaveStatus
-      }
-    ] satisfies Array<{ label: string; helper: string; status: PipelineStatus }>;
-  }, [hasPipelineResult, interhumanSummary?.status, requestState, robotStatus]);
   const activePipelineStatus: PipelineStatus =
     requestState === "listening" || requestState === "calling"
       ? "active"
@@ -243,6 +205,63 @@ export function OpsBotConsole() {
         : hasPipelineResult
           ? "done"
           : "idle";
+  const activePipelineCopy = useMemo(() => {
+    if (requestState === "error") {
+      return {
+        label: "Function error",
+        helper: "Could not complete the request."
+      };
+    }
+
+    if (requestState === "speaking") {
+      return {
+        label: "Speaking reply",
+        helper: "Playing OpsBot response."
+      };
+    }
+
+    if (hasPipelineResult && pipelineStep === "cyberwave") {
+      return {
+        label: "Cyberwave",
+        helper:
+          robotStatus === "sent"
+            ? "Robot action sent."
+            : robotStatus === "failed"
+              ? "Robot action failed."
+              : "Robot action skipped."
+      };
+    }
+
+    if (pipelineStep === "capture") {
+      return {
+        label: "Capture",
+        helper: "Recording camera + mic clip."
+      };
+    }
+
+    if (pipelineStep === "scrapegraph") {
+      return {
+        label: "ScrapeGraph",
+        helper: "Fetching event context."
+      };
+    }
+
+    if (pipelineStep === "cyberwave") {
+      return {
+        label: "Cyberwave",
+        helper: "Preparing robot action."
+      };
+    }
+
+    return {
+      label: "Interhuman signal",
+      helper: primarySignal
+        ? humanizeSignalLabel(primarySignal.type)
+        : pipelineStep === "interhuman"
+          ? "Analyzing visitor interaction."
+          : "Waiting for the next analyzed interaction."
+    };
+  }, [hasPipelineResult, pipelineStep, primarySignal, requestState, robotStatus]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -261,6 +280,36 @@ export function OpsBotConsole() {
       video.srcObject = null;
     };
   }, [cameraPreviewStream]);
+
+  useEffect(() => {
+    if (requestState === "listening") {
+      setPipelineStep("capture");
+      return;
+    }
+
+    if (requestState === "error") {
+      setPipelineStep("error");
+      return;
+    }
+
+    if (requestState === "speaking") {
+      setPipelineStep("reply");
+      return;
+    }
+
+    if (requestState !== "calling") {
+      return;
+    }
+
+    setPipelineStep("scrapegraph");
+    const interhumanTimer = window.setTimeout(() => setPipelineStep("interhuman"), 1300);
+    const cyberwaveTimer = window.setTimeout(() => setPipelineStep("cyberwave"), 3400);
+
+    return () => {
+      window.clearTimeout(interhumanTimer);
+      window.clearTimeout(cyberwaveTimer);
+    };
+  }, [requestState]);
 
   async function handleIntent(option: (typeof intentOptions)[number]) {
     setLastIntent(option.id);
@@ -376,6 +425,7 @@ export function OpsBotConsole() {
       setRobotStatus(data.robot_status ?? "skipped");
       setInterhumanSummary(data.interhuman_summary ?? null);
       setHasPipelineResult(true);
+      setPipelineStep("cyberwave");
       const userMessage = data.user_message ?? payload.message;
       setConversation((currentConversation) =>
         [
@@ -545,68 +595,23 @@ export function OpsBotConsole() {
                 )}
                 aria-hidden="true"
               />
-              {pipelineLabel}
-            </div>
-            <div className="mt-1 grid gap-0.5">
-              {pipelineSteps.map((step) => (
-                <div
-                  className="flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground"
-                  key={step.label}
-                >
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 shrink-0 rounded-full",
-                      pipelineStatusClassNames[step.status]
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className="shrink-0 font-medium text-foreground">{step.label}</span>
-                  <span className="truncate">{step.helper}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium leading-3 text-muted-foreground">
-              <Activity aria-hidden="true" className="h-3.5 w-3.5" />
-              Interhuman signal
-            </div>
-            <div className="mt-1">
-              {primarySignal ? (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[11px] font-semibold leading-4">
-                      {humanizeSignalLabel(primarySignal.type)}
-                    </p>
-                    {primarySignal.probability && (
-                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium leading-4 text-muted-foreground">
-                        {humanizeSignalLabel(primarySignal.probability)}
-                      </span>
-                    )}
-                  </div>
-                  {primarySignal.rationale && (
-                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
-                      {primarySignal.rationale}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-[11px] leading-4 text-muted-foreground">
-                  Waiting for the next analyzed interaction.
-                </p>
+              {activePipelineCopy.label === "Interhuman signal" && (
+                <Activity aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
+              <span>{activePipelineCopy.label}</span>
+              {primarySignal?.probability && activePipelineCopy.label === "Interhuman signal" && (
+                <span className="rounded-full border border-border px-1.5 text-[10px] font-medium leading-4 text-muted-foreground">
+                  {humanizeSignalLabel(primarySignal.probability)}
+                </span>
               )}
             </div>
-            {(interhumanSummary?.engagement_state || interhumanSummary?.quality_index) && (
-              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] leading-4 text-muted-foreground">
-                {interhumanSummary.engagement_state && (
-                  <span className="rounded-full bg-secondary px-2 py-0.5">
-                    {humanizeSignalLabel(interhumanSummary.engagement_state)}
-                  </span>
-                )}
-                {typeof interhumanSummary.quality_index === "number" && (
-                  <span className="rounded-full bg-secondary px-2 py-0.5">
-                    CQI {interhumanSummary.quality_index}
-                  </span>
-                )}
-              </div>
+            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+              {activePipelineCopy.helper}
+            </p>
+            {primarySignal?.rationale && activePipelineCopy.label === "Interhuman signal" && (
+              <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                {primarySignal.rationale}
+              </p>
             )}
           </div>
         </div>
