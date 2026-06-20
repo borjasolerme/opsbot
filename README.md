@@ -277,6 +277,17 @@ export CYBERWAVE_CAMERA_JOINT_STEP_DELAY="0.04"
 export ROBOT_FREE_ROAM="1"
 export ROBOT_FREE_ROAM_STEPS="3"
 export ROBOT_FREE_ROAM_RADIUS="0.42"
+export CYBERWAVE_WORKFLOW_POINT_CHECKIN="887173ea-eb5c-4d70-84d2-9178c6d3205a"
+export CYBERWAVE_WORKFLOW_TRIGGER_POINT_CHECKIN="5644d337-8e95-40cc-be34-c2ac6c33c8c3"
+export CYBERWAVE_WORKFLOW_POINT_LOST_FOUND="d0ec2fe3-213a-4183-a4eb-5e517476163d"
+export CYBERWAVE_WORKFLOW_TRIGGER_POINT_LOST_FOUND="07171aca-7596-4883-8237-870415aef3a5"
+export CYBERWAVE_WORKFLOW_POINT_CHARGER="e0913288-261f-46c4-9980-bfd3e84b167a"
+export CYBERWAVE_WORKFLOW_TRIGGER_POINT_CHARGER="3e0cdbbd-be3f-4cbb-a5ff-aefbd3af4a3e"
+export CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE="b171a1f3-672e-4f39-812f-f6b1f29ff795"
+export CYBERWAVE_WORKFLOW_TRIGGER_POINT_DEMO_QUEUE="5b48f1c8-e3d0-468c-9e84-da14b5fd4585"
+export CYBERWAVE_WORKFLOW_LOOK_AROUND="01fd77e5-612c-4bdb-9428-af9b3aa4d503"
+export CYBERWAVE_WORKFLOW_TRIGGER_LOOK_AROUND="ed29d974-247f-4035-ba97-bdb9723703d2"
+export CYBERWAVE_WORKFLOW_STRICT="0"
 ```
 
 If `CYBERWAVE_ROBOT_ID` is not set, the adapter falls back to `CYBERWAVE_ROBOT_REGISTRY_ID` (`waveshare/ugv-beast` by default) and `CYBERWAVE_ENVIRONMENT_ID`.
@@ -292,7 +303,7 @@ Action sent: point_demo_queue
 
 `CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene pose through Cyberwave REST after publishing the MQTT movement command. This gives the hackathon demo a visible SDK-driven movement path even if the Cyberwave simulation panel says there is no active simulation runtime.
 
-The bridge intentionally uses the Cyberwave Python SDK for dispatch instead of Cyberwave workflows. The generated manual workflows created error cards in Cyberwave because the workflow executor requires trigger-node metadata that the SDK trigger wrapper does not preserve. Keeping dispatch in the bridge gives the demo one reliable path: SDK scene pose updates, UGV Beast wheel commands, and UGV Beast camera/head commands.
+The bridge uses both Cyberwave paths. It triggers the Cyberwave workflow with its explicit trigger node UUID so runs appear in the Cyberwave `Executions` tab, then it also sends the SDK scene pose, UGV Beast wheel commands, and UGV Beast camera/head commands for the visible demo movement. Workflow failures are logged but non-fatal while `CYBERWAVE_WORKFLOW_STRICT=0`.
 
 The Cyberwave control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. The bridge publishes the UGV Beast catalog camera commands (`camera_left`, `camera_right`, `camera_up`, `camera_down`, `camera_default`) and also sends direct pan/tilt joint updates for `pt_base_link_to_pt_link1` and `pt_link1_to_pt_link2` so the head is visible in the Cyberwave viewport.
 

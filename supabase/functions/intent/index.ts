@@ -97,6 +97,10 @@ type OpenAiDecision = {
   robot_action: RobotAction;
 };
 
+type SourceSelection = {
+  sources: SourceKey[];
+};
+
 const robotActions: Record<IntentId, RobotAction> = {
   check_in: "point_checkin",
   lost_item: "point_lost_found",
@@ -169,6 +173,48 @@ const sourceConfigs: Record<IntentId, SourceConfig> = {
         code_freeze: { type: "string" },
         demo_time: { type: "string" },
         schedule: { type: "array", items: { type: "string" } }
+      }
+    }
+  }
+};
+
+const generalSourceConfigs: Record<SourceKey, SourceConfig> = {
+  luma_event: {
+    source_key: "luma_event",
+    env_name: "LUMA_EVENT_URL",
+    default_url: sourceConfigs.demo_schedule.default_url,
+    prompt:
+      "Extract factual event information useful for answering visitor questions: title, venue, start time, end time, schedule, agenda, hosts, speakers, sponsors, demo timing, check-in, food, and other visible public details.",
+    schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        venue: { type: "string" },
+        start_time: { type: "string" },
+        end_time: { type: "string" },
+        schedule: { type: "array", items: { type: "string" } },
+        people: { type: "array", items: { type: "string" } },
+        visitor_details: { type: "array", items: { type: "string" } }
+      }
+    }
+  },
+  talent_garden: {
+    source_key: "talent_garden",
+    env_name: "TALENT_GARDEN_URL",
+    default_url: sourceConfigs.lost_item.default_url,
+    prompt:
+      "Extract factual venue information useful for answering visitor questions: address, reception/front desk, rooms, bathrooms/restrooms if visible, amenities, contact/help point, transportation, accessibility, coworking access, opening hours, and public visitor guidance.",
+    schema: {
+      type: "object",
+      properties: {
+        address: { type: "string" },
+        reception: { type: "string" },
+        bathrooms: { type: "string" },
+        rooms: { type: "array", items: { type: "string" } },
+        amenities: { type: "array", items: { type: "string" } },
+        opening_hours: { type: "string" },
+        visitor_guidance: { type: "array", items: { type: "string" } },
+        contact_or_help_point: { type: "string" }
       }
     }
   }
@@ -249,10 +295,12 @@ function isIntentId(intent: unknown): intent is IntentId {
 async function resolveIntent(payload: IntentPayload): Promise<IntentReply> {
   const expectedAction = isIntentId(payload.intent) ? robotActions[payload.intent] : undefined;
   const conversation = getConversationTurns(payload.conversation);
-  const [message, sourceContext, interhumanContext] = await Promise.all([
-    getUserMessage(payload),
-    getSourceContexts(payload.intent),
-    getInterhumanContext(payload.media_base64, payload.media_mime_type)
+  const messagePromise = getUserMessage(payload);
+  const interhumanPromise = getInterhumanContext(payload.media_base64, payload.media_mime_type);
+  const message = await messagePromise;
+  const [sourceContext, interhumanContext] = await Promise.all([
+    getSourceContexts(payload.intent, message),
+    interhumanPromise
   ]);
   const decision = await generateDecision({
     intent: payload.intent,
@@ -290,49 +338,102 @@ async function getUserMessage(payload: IntentPayload): Promise<string | undefine
   return undefined;
 }
 
-async function getSourceContexts(intent: unknown): Promise<IntentContext[]> {
+async function getSourceContexts(intent: unknown, message?: string): Promise<IntentContext[]> {
   if (isIntentId(intent)) {
     return [await getSourceContext(sourceConfigs[intent])];
   }
 
-  return await Promise.all([
-    getSourceContext({
-      source_key: "luma_event",
-      env_name: "LUMA_EVENT_URL",
-      default_url: sourceConfigs.demo_schedule.default_url,
-      prompt:
-        "Extract factual event information useful for answering visitor questions: title, venue, start time, end time, schedule, agenda, hosts, speakers, sponsors, demo timing, check-in, food, and other visible public details.",
-      schema: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          venue: { type: "string" },
-          start_time: { type: "string" },
-          end_time: { type: "string" },
-          schedule: { type: "array", items: { type: "string" } },
-          people: { type: "array", items: { type: "string" } },
-          visitor_details: { type: "array", items: { type: "string" } }
+  const sourceKeys = await selectSourceKeys(message);
+  return await Promise.all(sourceKeys.map((sourceKey) => getSourceContext(generalSourceConfigs[sourceKey])));
+}
+
+async function selectSourceKeys(message?: string): Promise<SourceKey[]> {
+  if (!message || !openAiApiKey) {
+    return fallbackSourceKeys(message);
+  }
+
+  try {
+    const selection = await generateSourceSelection(message);
+    return normalizeSourceKeys(selection.sources);
+  } catch (error) {
+    console.error("OpenAI source selection failed", error);
+    return fallbackSourceKeys(message);
+  }
+}
+
+async function generateSourceSelection(message: string): Promise<SourceSelection> {
+  const response = await fetch(openAiResponsesUrl, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${openAiApiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: openAiResponseModel,
+      instructions: [
+        "Choose which source pages OpsBot must scrape before answering.",
+        "luma_event is for event title, agenda, schedule, start/end time, demo timing, hosts, speakers, sponsors, and check-in.",
+        "talent_garden is for venue, address, reception, bathrooms, rooms, amenities, transportation, accessibility, and coworking visitor guidance.",
+        "Return one source when the question is clearly about one area. Return both if uncertain."
+      ].join(" "),
+      input: [
+        {
+          role: "user",
+          content: [{ type: "input_text", text: message }]
         }
-      }
-    }),
-    getSourceContext({
-      source_key: "talent_garden",
-      env_name: "TALENT_GARDEN_URL",
-      default_url: sourceConfigs.lost_item.default_url,
-      prompt:
-        "Extract factual venue information useful for answering visitor questions: address, reception, rooms, amenities, contact/help point, transportation, accessibility, and any visible public visitor guidance.",
-      schema: {
-        type: "object",
-        properties: {
-          address: { type: "string" },
-          reception: { type: "string" },
-          amenities: { type: "array", items: { type: "string" } },
-          visitor_guidance: { type: "array", items: { type: "string" } },
-          contact_or_help_point: { type: "string" }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "opsbot_source_selection",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              sources: {
+                type: "array",
+                items: { type: "string", enum: ["luma_event", "talent_garden"] },
+                minItems: 1,
+                maxItems: 2
+              }
+            },
+            required: ["sources"],
+            additionalProperties: false
+          }
         }
-      }
+      },
+      max_output_tokens: 40
     })
-  ]);
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`OpenAI source selection failed with ${response.status}: ${errorText}`);
+  }
+
+  const result = (await response.json()) as Record<string, unknown>;
+  return JSON.parse(extractOutputText(result).trim()) as SourceSelection;
+}
+
+function fallbackSourceKeys(message?: string): SourceKey[] {
+  const text = message?.toLowerCase() ?? "";
+  const wantsVenue =
+    /talent|garden|venue|place|address|bathroom|toilet|restroom|room|reception|front desk|wifi|transport|metro|parking|where am i/.test(
+      text
+    );
+  const wantsEvent =
+    /event|luma|agenda|schedule|finish|end|start|demo|speaker|host|sponsor|check.?in|when|time/.test(
+      text
+    );
+
+  if (wantsVenue && !wantsEvent) return ["talent_garden"];
+  if (wantsEvent && !wantsVenue) return ["luma_event"];
+  return ["luma_event", "talent_garden"];
+}
+
+function normalizeSourceKeys(sources: SourceKey[]): SourceKey[] {
+  const unique = sources.filter((source, index) => sources.indexOf(source) === index);
+  return unique.length > 0 ? unique : ["luma_event", "talent_garden"];
 }
 
 async function getSourceContext(config: SourceConfig): Promise<IntentContext> {

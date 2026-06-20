@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import math
+import json
 import os
 import random
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
 from typing import Any
 
@@ -30,6 +33,27 @@ SCENE_POSITIONS_BY_ACTION = {
     "point_demo_queue": {"x": 2.0, "y": -1.4, "z": 0.0},
     "look_around": {"x": 0.0, "y": 0.0, "z": 0.0},
     "idle": {"x": 0.0, "y": 0.0, "z": 0.0},
+}
+WAYPOINT_IDS_BY_ACTION = {
+    "point_checkin": "opsbot_checkin",
+    "point_lost_found": "opsbot_lost_found",
+    "point_charger": "opsbot_charger",
+    "point_demo_queue": "opsbot_demo_queue",
+    "look_around": "opsbot_center",
+}
+WORKFLOW_ENV_KEYS_BY_ACTION = {
+    "point_checkin": "CYBERWAVE_WORKFLOW_POINT_CHECKIN",
+    "point_lost_found": "CYBERWAVE_WORKFLOW_POINT_LOST_FOUND",
+    "point_charger": "CYBERWAVE_WORKFLOW_POINT_CHARGER",
+    "point_demo_queue": "CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE",
+    "look_around": "CYBERWAVE_WORKFLOW_LOOK_AROUND",
+}
+WORKFLOW_TRIGGER_ENV_KEYS_BY_ACTION = {
+    "point_checkin": "CYBERWAVE_WORKFLOW_TRIGGER_POINT_CHECKIN",
+    "point_lost_found": "CYBERWAVE_WORKFLOW_TRIGGER_POINT_LOST_FOUND",
+    "point_charger": "CYBERWAVE_WORKFLOW_TRIGGER_POINT_CHARGER",
+    "point_demo_queue": "CYBERWAVE_WORKFLOW_TRIGGER_POINT_DEMO_QUEUE",
+    "look_around": "CYBERWAVE_WORKFLOW_TRIGGER_LOOK_AROUND",
 }
 CAMERA_JOINT_POSITIONS_BY_COMMAND = {
     "camera_default": {
@@ -73,6 +97,8 @@ def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
         f"twin_uuid={getattr(robot, 'uuid', None)} "
         f"twin_slug={getattr(robot, 'slug', None)}"
     )
+
+    _trigger_workflow_if_configured(client, action)
 
     sent_initial_command = False
     update_scene_pose = _should_update_scene_pose(mode, action)
@@ -158,6 +184,68 @@ def _get_robot_mode() -> str:
 
     _log_bridge(f"Unsupported ROBOT_MODE={mode!r}; falling back to simulation")
     return "simulation"
+
+
+def _trigger_workflow_if_configured(client: Any, action: str) -> None:
+    workflow_id = _workflow_id_for_action(action)
+    trigger_node_uuid = _workflow_trigger_node_for_action(action)
+    if not workflow_id or not trigger_node_uuid:
+        return
+
+    api_key = os.getenv("CYBERWAVE_API_KEY") or getattr(getattr(client, "config", None), "api_key", None)
+    base_url = getattr(getattr(client, "config", None), "base_url", "https://api.cyberwave.com")
+    if not api_key:
+        _log_bridge("Cyberwave workflow skipped: CYBERWAVE_API_KEY is missing")
+        return
+
+    inputs = {
+        "twin_uuid": os.getenv("CYBERWAVE_ROBOT_ID", "").strip(),
+        "waypoint_id": WAYPOINT_IDS_BY_ACTION.get(action),
+    }
+    body = {
+        "trigger_node_uuid": trigger_node_uuid,
+        "inputs": {key: value for key, value in inputs.items() if value},
+    }
+    url = f"{base_url.rstrip('/')}/api/v1/workflows/{workflow_id}/trigger"
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=4) as response:
+            data = json.loads(response.read().decode("utf-8") or "{}")
+        _log_bridge(
+            "Cyberwave workflow triggered: "
+            f"action={action} workflow={workflow_id} run={data.get('uuid') or data.get('id')}"
+        )
+    except Exception as exc:
+        if isinstance(exc, urllib.error.HTTPError):
+            detail = exc.read().decode("utf-8", errors="replace")
+            _log_bridge(
+                "Cyberwave workflow trigger failed: "
+                f"action={action} status={exc.code} body={detail[:300]}"
+            )
+        else:
+            _log_bridge(f"Cyberwave workflow trigger failed: action={action} error={exc}")
+
+        if os.getenv("CYBERWAVE_WORKFLOW_STRICT") == "1":
+            raise
+
+
+def _workflow_id_for_action(action: str) -> str | None:
+    key = WORKFLOW_ENV_KEYS_BY_ACTION.get(action)
+    return os.getenv(key, "").strip() if key else None
+
+
+def _workflow_trigger_node_for_action(action: str) -> str | None:
+    key = WORKFLOW_TRIGGER_ENV_KEYS_BY_ACTION.get(action)
+    return os.getenv(key, "").strip() if key else None
 
 
 def _log_bridge(message: str) -> None:
