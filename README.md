@@ -8,6 +8,55 @@ OpsBot is a physical AI front desk for coworkings and events: it reads live even
 
 OpsBot is a fixed-table AI front desk for coworkings and events. Visitors interact from any phone browser through a web app. The system answers questions, reads event info, logs actions, and later triggers simple robot actions like pointing, waving, or pushing a card.
 
+## How to Start
+
+From the repo root:
+
+```bash
+cd opsbot
+npm install
+cp .env.example .env.local
+```
+
+Fill `.env.local` with the Supabase, ScrapeGraph, Interhuman, Cyberwave, and OpenAI keys needed for your local run.
+
+Start the local Supabase Edge Function:
+
+```bash
+npm run dev:intent
+```
+
+In a second terminal, start the robot bridge:
+
+```bash
+cd opsbot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r robot_bridge/requirements.txt
+npm run dev:robot
+```
+
+In a third terminal, start the Next.js app:
+
+```bash
+cd opsbot
+npm run dev
+```
+
+Open:
+
+```txt
+http://localhost:3000
+```
+
+Useful checks:
+
+```bash
+npm test
+npm run test:robot
+npm run build
+```
+
 ## Stack
 
 - App: Next.js + TypeScript + Tailwind CSS + shadcn/ui
