@@ -411,11 +411,11 @@ async function getInterhumanContext(
   mediaMimeTypeInput: unknown
 ): Promise<InterhumanContext> {
   if (!interhumanApiKey) {
-    throw new Error("Interhuman analysis is not configured.");
+    return failedInterhumanContext("Interhuman analysis is not configured.");
   }
 
   if (typeof mediaBase64Input !== "string" || mediaBase64Input.length === 0) {
-    throw new Error("Interhuman media is required.");
+    return failedInterhumanContext("Interhuman media is required.");
   }
 
   try {
@@ -439,13 +439,13 @@ async function getInterhumanContext(
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       console.error("Interhuman analysis failed", response.status, errorText);
-      throw new Error(`Interhuman analysis failed with ${response.status}.`);
+      return failedInterhumanContext(`Interhuman analysis failed with ${response.status}.`);
     }
 
     const data = asRecord(await response.json().catch(() => undefined));
     if (Object.keys(data).length === 0) {
       console.error("Interhuman analysis failed", response.status);
-      throw new Error("Interhuman analysis returned no data.");
+      return failedInterhumanContext("Interhuman analysis returned no data.");
     }
 
     return {
@@ -454,8 +454,16 @@ async function getInterhumanContext(
     };
   } catch (error) {
     console.error("Interhuman request failed", error);
-    throw error;
+    return failedInterhumanContext(error instanceof Error ? error.message : "unknown error");
   }
+}
+
+function failedInterhumanContext(error: string): InterhumanContext {
+  return {
+    status: "failed",
+    data: {},
+    error
+  };
 }
 
 function summarizeInterhumanContext(context: InterhumanContext): InterhumanSummary {

@@ -150,7 +150,7 @@ const robotDestinations: Array<{
 const intentFunctionUrl =
   process.env.NEXT_PUBLIC_INTENT_FUNCTION_URL ??
   "http://127.0.0.1:54331/functions/v1/intent";
-const interhumanMinimumClipMs = 1200;
+const interhumanMinimumClipMs = 3200;
 
 function humanizeSignalLabel(value: string): string {
   return value
