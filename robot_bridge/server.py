@@ -19,7 +19,7 @@ class ActionRequest(BaseModel):
 def dispatch_robot_action(action: str) -> None:
     from .cyberwave_adapter import send_robot_action
 
-    send_robot_action(action, wait_for_motion=False)
+    send_robot_action(action, wait_for_motion=True)
 
 
 def create_app(dispatcher: ActionDispatcher = dispatch_robot_action) -> FastAPI:

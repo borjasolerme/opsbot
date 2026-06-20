@@ -65,6 +65,7 @@ def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
     commands = map_robot_action(action)
     if wait_for_motion:
         _execute_commands(robot, action, commands)
+        _execute_free_roam(robot, action)
     else:
         if update_scene_pose:
             _run_scene_rotation_background(robot, action)
