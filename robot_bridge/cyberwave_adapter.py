@@ -6,6 +6,7 @@ import random
 import sys
 import threading
 import time
+import uuid
 from typing import Any
 
 from .actions import RobotCommand, map_robot_action
@@ -19,6 +20,7 @@ SCENE_YAWS_BY_ACTION = {
     "point_lost_found": 18.0,
     "point_charger": -30.0,
     "point_demo_queue": 30.0,
+    "look_around": 0.0,
     "idle": 0.0,
 }
 SCENE_POSITIONS_BY_ACTION = {
@@ -26,6 +28,7 @@ SCENE_POSITIONS_BY_ACTION = {
     "point_lost_found": {"x": 2.0, "y": 1.4, "z": 0.0},
     "point_charger": {"x": -2.0, "y": -1.4, "z": 0.0},
     "point_demo_queue": {"x": 2.0, "y": -1.4, "z": 0.0},
+    "look_around": {"x": 0.0, "y": 0.0, "z": 0.0},
     "idle": {"x": 0.0, "y": 0.0, "z": 0.0},
 }
 _LAST_SCENE_YAW: float | None = None
@@ -82,12 +85,15 @@ def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
 
 
 def _get_robot(client: Any) -> Any:
-    twin_id = os.getenv("CYBERWAVE_ROBOT_ID")
-    if twin_id:
-        return client.twin(twin_id=twin_id)
-
     registry_id = os.getenv("CYBERWAVE_ROBOT_REGISTRY_ID", DEFAULT_REGISTRY_ID)
     environment_id = _get_environment_reference()
+    twin_id = os.getenv("CYBERWAVE_ROBOT_ID", "").strip()
+    if twin_id:
+        if environment_id:
+            return client.twin(registry_id, twin_id=twin_id, environment_id=environment_id)
+
+        return client.twin(registry_id, twin_id=twin_id)
+
     if environment_id:
         return client.twin(registry_id, environment_id=environment_id)
 
@@ -95,15 +101,27 @@ def _get_robot(client: Any) -> Any:
 
 
 def _get_environment_reference() -> str | None:
-    environment_id = os.getenv("CYBERWAVE_ENVIRONMENT_ID")
+    environment_id = os.getenv("CYBERWAVE_ENVIRONMENT_ID", "").strip()
     if not environment_id:
         return None
+
+    if _is_uuid(environment_id):
+        return environment_id
 
     workspace = os.getenv("CYBERWAVE_WORKSPACE")
     if workspace and "/" not in environment_id:
         return f"{workspace}/envs/{environment_id}"
 
     return environment_id
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+
+    return True
 
 
 def _get_robot_mode() -> str:

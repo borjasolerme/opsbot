@@ -1,12 +1,42 @@
 # Intent Function
 
-Mocked Supabase Edge Function for the first OpsBot vertical slice.
+Supabase Edge Function for the OpsBot voice and robot loop.
 
-Request:
+The function uses one shared pipeline for shortcut buttons and open voice conversation:
+
+```txt
+request media + intent/message
+↓
+ScrapeGraph context
+↓
+Interhuman upload/analyze
+↓
+OpenAI decision + speech
+↓
+Supabase log
+↓
+Cyberwave robot bridge
+```
+
+Shortcut request:
 
 ```json
 {
-  "intent": "demo_schedule"
+  "intent": "demo_schedule",
+  "media_base64": "<webm-base64>",
+  "media_mime_type": "video/webm"
+}
+```
+
+Voice request:
+
+```json
+{
+  "audio_base64": "<webm-base64>",
+  "audio_mime_type": "video/webm",
+  "media_base64": "<webm-base64>",
+  "media_mime_type": "video/webm",
+  "conversation": []
 }
 ```
 
@@ -14,9 +44,12 @@ Response:
 
 ```json
 {
-  "reply": "Code freeze is at 17:00 and live demos start at 17:30.",
-  "robot_action": "point_demo_queue",
-  "robot_status": "sent"
+  "reply": "<OpenAI-generated text>",
+  "robot_action": "look_around",
+  "robot_status": "sent",
+  "audio_base64": "<mp3-base64>",
+  "audio_mime_type": "audio/mpeg",
+  "user_message": "<OpenAI transcript when available>"
 }
 ```
 
@@ -32,17 +65,40 @@ Local endpoint:
 http://127.0.0.1:54331/functions/v1/intent
 ```
 
-The Next.js app calls this endpoint through `NEXT_PUBLIC_INTENT_FUNCTION_URL`.
+## Required Providers
 
-If `ROBOT_BRIDGE_URL` is set, the function posts the resolved robot action to the Python robot bridge after the Supabase log insert:
+OpenAI is required for transcription, reply/action selection, and speech audio:
 
-```json
-{
-  "action": "point_demo_queue"
-}
+```bash
+OPENAI_API_KEY=
+OPENAI_RESPONSE_MODEL=gpt-4.1-mini
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
+OPENAI_TTS_VOICE=coral
+OPENAI_TTS_FORMAT=mp3
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
 ```
 
-The latest log row stores the robot result:
+Interhuman is required. The function uploads the request media to `POST /v1/upload/analyze` as multipart form data:
+
+```bash
+INTERHUMAN_API_KEY=
+INTERHUMAN_ANALYZE_URL=https://api.interhuman.ai/v1/upload/analyze
+```
+
+ScrapeGraph supplies event and venue context. `SCRAPEGRAPH_API_KEY` is the preferred env name; `SGAI_API_KEY` remains supported in code for older local envs.
+
+```bash
+SCRAPEGRAPH_API_KEY=
+SCRAPEGRAPH_EXTRACT_URL=https://v2-api.scrapegraphai.com/api/extract
+SCRAPEGRAPH_TIMEOUT_MS=4000
+SCRAPEGRAPH_CONTEXT_CACHE_TTL_MS=300000
+LUMA_EVENT_URL=https://luma.com/mmc68m0b?tk=O68Z91
+TALENT_GARDEN_URL=https://talentgarden.com/it/coworking/milano-calabiana
+```
+
+## Logs
+
+Each row stores:
 
 ```sql
 select intent, reply, robot_action, robot_status, created_at

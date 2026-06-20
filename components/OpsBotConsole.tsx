@@ -4,9 +4,17 @@ import {
   BatteryCharging,
   CheckCircle2,
   Clock3,
-  PackageSearch
+  Mic,
+  PackageSearch,
+  Square
 } from "lucide-react";
-import { type ComponentType, type CSSProperties, useMemo, useState } from "react";
+import {
+  type ComponentType,
+  type CSSProperties,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -17,13 +25,25 @@ import {
   type RobotStatus
 } from "@/lib/intent";
 
-type RequestState = "ready" | "calling" | "speaking" | "speech_unavailable" | "error";
+type RequestState =
+  | "ready"
+  | "listening"
+  | "calling"
+  | "speaking"
+  | "speech_unavailable"
+  | "error";
+type ConversationTurn = { role: "user" | "assistant"; content: string };
+type InteractionMedia = {
+  media_base64: string;
+  media_mime_type: string;
+};
 
 const robotActionLabels: Record<IntentResponse["robot_action"], string> = {
   point_checkin: "Pointing to check-in",
   point_lost_found: "Pointing to lost & found",
   point_charger: "Pointing to chargers",
   point_demo_queue: "Pointing to demo queue",
+  look_around: "Looking around",
   wave: "Waving",
   idle: "Idle"
 };
@@ -111,23 +131,137 @@ const robotDestinations: Array<{
 const intentFunctionUrl =
   process.env.NEXT_PUBLIC_INTENT_FUNCTION_URL ??
   "http://127.0.0.1:54331/functions/v1/intent";
+const interhumanMinimumClipMs = 3200;
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+
+  return btoa(binary);
+}
 
 export function OpsBotConsole() {
   const [robotAction, setRobotAction] = useState<IntentResponse["robot_action"]>("idle");
   const [robotStatus, setRobotStatus] = useState<RobotStatus>("skipped");
   const [requestState, setRequestState] = useState<RequestState>("ready");
   const [lastIntent, setLastIntent] = useState<IntentId | null>(null);
+  const [conversation, setConversation] = useState<ConversationTurn[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<BlobPart[]>([]);
+  const recordingStartedAtRef = useRef(0);
 
   const statusLabel = useMemo(() => {
     if (requestState === "calling") return "Calling Edge Function";
+    if (requestState === "listening") return "Listening";
     if (requestState === "speaking") return "Speaking reply";
     if (requestState === "speech_unavailable") return "Speech unavailable";
     if (requestState === "error") return "Function error";
     return "Ready";
   }, [requestState]);
+  const isBusy = requestState === "calling" || requestState === "listening";
 
   async function handleIntent(intent: IntentId) {
     setLastIntent(intent);
+
+    try {
+      setRequestState("listening");
+      await requestOpsBot({
+        intent,
+        ...(await captureInteractionMedia(interhumanMinimumClipMs))
+      });
+    } catch {
+      setRobotAction("idle");
+      setRobotStatus("failed");
+      setRequestState("error");
+    }
+  }
+
+  async function toggleRecording() {
+    if (isRecording) {
+      const remainingMs = interhumanMinimumClipMs - (Date.now() - recordingStartedAtRef.current);
+
+      if (remainingMs > 0) {
+        window.setTimeout(() => mediaRecorderRef.current?.stop(), remainingMs);
+      } else {
+        mediaRecorderRef.current?.stop();
+      }
+
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setRequestState("speech_unavailable");
+      return;
+    }
+
+    try {
+      const stream = await getInteractionStream();
+      const recorder = new MediaRecorder(stream);
+      recordingChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+      recordingStartedAtRef.current = Date.now();
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        setIsRecording(false);
+        setRequestState("calling");
+        stream.getTracks().forEach((track) => track.stop());
+        const mediaBlob = new Blob(recordingChunksRef.current, {
+          type: recorder.mimeType || "video/webm"
+        });
+        recordingChunksRef.current = [];
+
+        if (mediaBlob.size === 0) {
+          setRequestState("speech_unavailable");
+          return;
+        }
+
+        const mediaBase64 = await blobToBase64(mediaBlob);
+        setLastIntent(null);
+        await requestOpsBot({
+          audio_base64: mediaBase64,
+          audio_mime_type: mediaBlob.type || "video/webm",
+          media_base64: mediaBase64,
+          media_mime_type: mediaBlob.type || "video/webm"
+        });
+      };
+
+      recorder.onerror = () => {
+        setIsRecording(false);
+        stream.getTracks().forEach((track) => track.stop());
+        setRequestState("speech_unavailable");
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setRequestState("listening");
+    } catch {
+      setRequestState("speech_unavailable");
+    }
+  }
+
+  async function requestOpsBot(payload: {
+    intent?: IntentId;
+    message?: string;
+    audio_base64?: string;
+    audio_mime_type?: string;
+    media_base64?: string;
+    media_mime_type?: string;
+  }) {
+    const requestConversation = conversation;
     setRobotStatus("skipped");
     setRequestState("calling");
 
@@ -137,7 +271,10 @@ export function OpsBotConsole() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ intent })
+        body: JSON.stringify({
+          ...payload,
+          conversation: requestConversation
+        })
       });
 
       if (!response.ok) {
@@ -147,8 +284,16 @@ export function OpsBotConsole() {
       const data = (await response.json()) as IntentResponse;
       setRobotAction(data.robot_action);
       setRobotStatus(data.robot_status ?? "skipped");
+      const userMessage = data.user_message ?? payload.message;
+      setConversation((currentConversation) =>
+        [
+          ...currentConversation,
+          userMessage ? { role: "user" as const, content: userMessage } : null,
+          { role: "assistant" as const, content: data.reply }
+        ].filter((turn): turn is ConversationTurn => turn !== null).slice(-8)
+      );
 
-      speakReply(data.reply);
+      playReplyAudio(data);
     } catch {
       setRobotAction("idle");
       setRobotStatus("failed");
@@ -156,20 +301,71 @@ export function OpsBotConsole() {
     }
   }
 
-  function speakReply(message: string) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+  async function captureInteractionMedia(durationMs: number): Promise<InteractionMedia> {
+    const stream = await getInteractionStream();
+    const recorder = new MediaRecorder(stream);
+    const chunks: BlobPart[] = [];
+
+    return await new Promise((resolve, reject) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        reject(new Error("Interaction recording failed."));
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const mediaBlob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
+
+        if (mediaBlob.size === 0) {
+          reject(new Error("Interaction recording was empty."));
+          return;
+        }
+
+        resolve({
+          media_base64: await blobToBase64(mediaBlob),
+          media_mime_type: mediaBlob.type || "video/webm"
+        });
+      };
+
+      recorder.start();
+      window.setTimeout(() => recorder.stop(), durationMs);
+    });
+  }
+
+  async function getInteractionStream(): Promise<MediaStream> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Browser media capture is unavailable.");
+    }
+
+    return await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: {
+        facingMode: "user",
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
+    });
+  }
+
+  function playReplyAudio(data: IntentResponse) {
+    if (!data.audio_base64) {
       setRequestState("speech_unavailable");
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(message);
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-    utterance.onstart = () => setRequestState("speaking");
-    utterance.onend = () => setRequestState("ready");
-    utterance.onerror = () => setRequestState("speech_unavailable");
-    window.speechSynthesis.speak(utterance);
+    audioRef.current?.pause();
+    const audio = new Audio(`data:${data.audio_mime_type ?? "audio/mpeg"};base64,${data.audio_base64}`);
+    audioRef.current = audio;
+    audio.onplay = () => setRequestState("speaking");
+    audio.onended = () => setRequestState("ready");
+    audio.onerror = () => setRequestState("speech_unavailable");
+    void audio.play().catch(() => setRequestState("speech_unavailable"));
   }
 
   return (
@@ -188,7 +384,7 @@ export function OpsBotConsole() {
             <span
               className={cn(
                 "h-2 w-2 rounded-full bg-success",
-                (requestState === "calling" || requestState === "speaking") && "bg-warning",
+                (isBusy || requestState === "speaking") && "bg-warning",
                 (requestState === "speech_unavailable" || requestState === "error") &&
                   "bg-destructive"
               )}
@@ -232,7 +428,7 @@ export function OpsBotConsole() {
                     "h-[92px] w-full justify-start gap-4 rounded-[18px] border border-border bg-background px-4 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] hover:border-[#c9c9c9] hover:bg-background hover:shadow-[0_12px_24px_-22px_rgba(0,0,0,0.55)] active:translate-y-px [&_svg]:size-6",
                     lastIntent === option.id && "border-foreground bg-background"
                   )}
-                  disabled={requestState === "calling"}
+                  disabled={isBusy}
                   key={option.id}
                   onClick={() => handleIntent(option.id)}
                   type="button"
@@ -257,6 +453,36 @@ export function OpsBotConsole() {
               );
             })}
           </div>
+
+          <Button
+            className="mt-4 h-14 w-full gap-3 rounded-[18px] text-base"
+            disabled={requestState === "calling" || (requestState === "listening" && !isRecording)}
+            onClick={toggleRecording}
+            type="button"
+            variant={isRecording ? "default" : "secondary"}
+          >
+            {isRecording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
+            {isRecording ? "Stop" : "Talk"}
+          </Button>
+
+          {conversation.length > 0 ? (
+            <div className="mt-4 max-h-48 overflow-y-auto rounded-[18px] border border-border bg-background p-3 text-sm leading-5">
+              {conversation.slice(-4).map((turn, index) => (
+                <p
+                  className={cn(
+                    "py-1",
+                    turn.role === "assistant" ? "text-foreground" : "text-muted-foreground"
+                  )}
+                  key={`${turn.role}-${index}-${turn.content.slice(0, 12)}`}
+                >
+                  <span className="font-medium">
+                    {turn.role === "assistant" ? "OpsBot" : "You"}:
+                  </span>{" "}
+                  {turn.content}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex min-w-0 flex-col md:pt-[70px]">

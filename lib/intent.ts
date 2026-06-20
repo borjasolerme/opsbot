@@ -12,6 +12,7 @@ export type RobotAction =
   | "point_lost_found"
   | "point_charger"
   | "point_demo_queue"
+  | "look_around"
   | "wave"
   | "idle";
 export type RobotStatus = "sent" | "failed" | "skipped";
@@ -20,6 +21,9 @@ export type IntentResponse = {
   reply: string;
   robot_action: RobotAction;
   robot_status?: RobotStatus;
+  audio_base64?: string;
+  audio_mime_type?: string;
+  user_message?: string;
 };
 
 export const intentOptions: Array<{
@@ -49,36 +53,17 @@ export const intentOptions: Array<{
   }
 ];
 
-const mockedReplies = {
-  check_in: {
-    reply: "Welcome. Check-in closes at 10:30 and hacking starts at 10:30.",
-    robot_action: "point_checkin"
-  },
-  lost_item: {
-    reply: "Please place the item in Lost & Found. I'll register it for staff.",
-    robot_action: "point_lost_found"
-  },
-  charger_request: {
-    reply: "You can ask staff for a charger or check the shared accessories table.",
-    robot_action: "point_charger"
-  },
-  demo_schedule: {
-    reply: "Code freeze is at 17:00 and live demos start at 17:30.",
-    robot_action: "point_demo_queue"
-  }
-} satisfies Record<IntentId, IntentResponse>;
-
 export function isIntentId(value: unknown): value is IntentId {
   return typeof value === "string" && intentIds.includes(value as IntentId);
 }
 
-export function resolveIntent(intent: unknown): IntentResponse {
-  if (!isIntentId(intent)) {
-    return {
-      reply: "I can help with check-in, lost items, chargers, or the demo schedule.",
-      robot_action: "idle"
-    };
-  }
+export const robotActionsByIntent = {
+  check_in: "point_checkin",
+  lost_item: "point_lost_found",
+  charger_request: "point_charger",
+  demo_schedule: "point_demo_queue"
+} satisfies Record<IntentId, RobotAction>;
 
-  return mockedReplies[intent];
+export function robotActionForIntent(intent: unknown): RobotAction {
+  return isIntentId(intent) ? robotActionsByIntent[intent] : "idle";
 }

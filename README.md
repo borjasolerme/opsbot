@@ -6,7 +6,7 @@ OpsBot is a physical AI front desk for coworkings and events: it reads live even
 
 ## Project
 
-OpsBot is a fixed-table AI front desk for coworkings and events. Visitors interact from any phone browser through a web app. The system answers questions, reads event info, logs actions, and later triggers simple robot actions like pointing, waving, or pushing a card.
+OpsBot is a voice-first AI front desk for coworkings and events. Visitors interact from any phone browser through a web app. The system answers questions, reads event and venue info, analyzes the interaction with Interhuman, logs actions, and triggers Cyberwave robot motion.
 
 ## How to Start
 
@@ -62,25 +62,28 @@ npm run build
 - App: Next.js + TypeScript + Tailwind CSS + shadcn/ui
 - Backend: Supabase Edge Functions
 - Database/logs: Supabase Postgres
-- UI/audio: phone web app + browser speech synthesis
-- ScrapeGraph: event/schedule extraction
-- Interhuman: realtime empathy/social-signal layer
+- UI/audio: phone web app + OpenAI speech playback
+- OpenAI: natural reply generation, voice transcription, and speech audio
+- ScrapeGraph: event and venue context extraction
+- Interhuman: required video/audio social-signal analysis
 - Cyberwave: one selected robot target, either UGV Beast Rover or Unitree Go2
 
 ## MVP Flow
 
 ```txt
-Visitor taps button on the phone web app
+Visitor taps a shortcut or Talk on the phone web app
+↓
+The browser captures a short camera/mic clip
 ↓
 Next.js calls the Supabase Edge Function /intent
 ↓
-Function returns reply + robot_action
+Function calls ScrapeGraph, Interhuman, and OpenAI
 ↓
-The phone web app speaks the reply
+Function returns OpenAI reply audio + robot_action + robot_status
 ↓
-UI shows a mocked robot action
+The phone web app plays OpenAI speech
 ↓
-Robot action is mocked first, then connected to Cyberwave
+The Python bridge moves the Cyberwave robot
 ```
 
 ## MVP Buttons
@@ -89,14 +92,17 @@ Robot action is mocked first, then connected to Cyberwave
 - Lost item
 - Charger request
 - Demo schedule
+- Talk
 
 ## Example Response
 
 ```json
 {
-  "reply": "Code freeze is at 17:00 and live demos start at 17:30.",
+  "reply": "<OpenAI-generated speech text>",
   "robot_action": "point_demo_queue",
-  "robot_status": "sent"
+  "robot_status": "sent",
+  "audio_base64": "<mp3-base64>",
+  "audio_mime_type": "audio/mpeg"
 }
 ```
 
@@ -106,15 +112,16 @@ Robot action is mocked first, then connected to Cyberwave
 - point_lost_found
 - point_charger
 - point_demo_queue
+- look_around
 - wave
 - idle
 
 ## Current Vertical Slice
 
-The mocked loop now uses the local Supabase Edge Function:
+The local vertical slice uses the Supabase Edge Function and the Python robot bridge:
 
 ```txt
-iPhone web app button
+iPhone web app shortcut or Talk button
 ↓
 Supabase Edge Function /intent
 ↓
@@ -127,7 +134,84 @@ Cyberwave
 selected robot
 ```
 
-The web app still renders the mocked robot state immediately from the Edge Function response. The real robot path is isolated in the Python bridge.
+The web app renders the robot state from the Edge Function response and plays the OpenAI-generated audio. Cyberwave code remains isolated in the Python bridge.
+
+## ScrapeGraph Context Layer
+
+The intent function resolves context before generating replies:
+
+```txt
+shortcut intent or spoken request
+↓
+ScrapeGraph source selection
+↓
+ScrapeGraph structured extraction
+↓
+Interhuman media analysis
+↓
+OpenAI reply/action/audio generation
+↓
+Supabase log
+↓
+robot bridge
+```
+
+Shortcuts scrape only the relevant source. The general Talk path uses both the event page and the venue page.
+
+| Intent | Source env | Default source | Extracted object |
+| --- | --- | --- | --- |
+| `check_in` | `LUMA_EVENT_URL` | Luma event page | event title, venue, start time, check-in/start instructions |
+| `lost_item` | `TALENT_GARDEN_URL` | Talent Garden Calabiana page | venue address, reception/front desk/contact/help point |
+| `charger_request` | `LUMA_EVENT_URL` | Luma event page | public Cyberwave people, speakers, hosts, or organizers |
+| `demo_schedule` | `LUMA_EVENT_URL` | Luma event page | agenda, demo time, code freeze, schedule |
+
+ScrapeGraph uses the v2 extract endpoint documented by ScrapeGraph:
+
+```txt
+POST https://v2-api.scrapegraphai.com/api/extract
+Header: SGAI-APIKEY
+Body: { url, prompt, schema, mode: "reader" }
+```
+
+There is no deterministic visitor reply fallback. If ScrapeGraph is unavailable, the Edge Function passes that provider status to OpenAI. OpenAI is instructed not to invent scraped facts.
+
+## Interhuman Context Layer
+
+Interhuman is required for `/intent`. The browser sends a short WebM camera/mic clip for every shortcut and Talk request. The Edge Function uploads that clip to Interhuman:
+
+```txt
+POST https://api.interhuman.ai/v1/upload/analyze
+Header: Authorization: Bearer <INTERHUMAN_API_KEY>
+Body: multipart/form-data file=<webm>, include[]=conversation_quality_overall, include[]=conversation_quality_timeline
+```
+
+The Interhuman response is passed to OpenAI as context. If Interhuman credentials are missing or the upload fails, `/intent` returns an error instead of pretending the robot can see people.
+
+Required server env:
+
+```bash
+INTERHUMAN_API_KEY=
+INTERHUMAN_ANALYZE_URL=https://api.interhuman.ai/v1/upload/analyze
+```
+
+## OpenAI Speech Layer
+
+OpenAI does three jobs in the Edge Function:
+
+- transcribes Talk recordings when the request contains voice
+- chooses the natural reply and robot action from ScrapeGraph and Interhuman context
+- generates the speech audio returned to the browser
+
+Required server env:
+
+```bash
+OPENAI_API_KEY=
+OPENAI_RESPONSE_MODEL=gpt-4.1-mini
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
+OPENAI_TTS_VOICE=coral
+OPENAI_TTS_FORMAT=mp3
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+```
 
 ## Robot Bridge
 
@@ -174,9 +258,9 @@ Bridge configuration:
 ```bash
 export CYBERWAVE_API_KEY="cw_your_token"
 export CYBERWAVE_WORKSPACE="borjas-workspace"
-export CYBERWAVE_ENVIRONMENT_ID="borjas-workspace/envs/opsbot-hackathon-demo"
+export CYBERWAVE_ENVIRONMENT_ID="075f2258-8e0f-4ce3-9e91-c00cb387cca8"
 export CYBERWAVE_ROBOT_REGISTRY_ID="waveshare/ugv-beast"
-export CYBERWAVE_ROBOT_ID="your_twin_uuid_or_slug"
+export CYBERWAVE_ROBOT_ID="8599efec-fe5b-47ea-8040-78cd9e531d9a"
 export ROBOT_MODE="simulation"
 export CYBERWAVE_AFFECT="simulation"
 export CYBERWAVE_SIMULATION_VISIBILITY_MODE="scene_edit"
@@ -212,6 +296,7 @@ Current UGV Beast action mapping:
 | `point_lost_found` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_up`, scene pose `x=2.0 y=1.4 yaw=18` |
 | `point_charger` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_down`, scene pose `x=-2.0 y=-1.4 yaw=-30` |
 | `point_demo_queue` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_down`, scene pose `x=2.0 y=-1.4 yaw=30` |
+| `look_around` | stop, scan left/right with camera, small left/right/center chassis gesture, scene pose near the center |
 | `wave` | stop, center camera, small left/right/center chassis gesture |
 | `idle` | `stop` |
 
@@ -269,11 +354,11 @@ npm run test:robot
 ```txt
 Function returns
 ↓
-reply + robot_action
+reply + audio_base64 + robot_action + robot_status
 ↓
-browser speech synthesis
+OpenAI speech audio playback
 ↓
-mocked robot action UI
+robot action UI + Cyberwave bridge dispatch
 ```
 
 The Next.js app calls `NEXT_PUBLIC_INTENT_FUNCTION_URL`, which defaults to the local Supabase Functions endpoint.

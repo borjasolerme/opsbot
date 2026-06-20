@@ -43,6 +43,23 @@ class ActionMapperTest(unittest.TestCase):
             ["turn_left", "camera_left", "camera_down"],
         )
 
+    def test_maps_look_around_to_camera_scan_and_body_motion(self) -> None:
+        command_names = [command.name for command in map_robot_action("look_around")]
+
+        self.assertEqual(command_names[:9], [
+            "stop",
+            "camera_default",
+            "wait",
+            "camera_left",
+            "wait",
+            "camera_right",
+            "wait",
+            "camera_default",
+            "wait",
+        ])
+        self.assertIn("turn_left", command_names)
+        self.assertIn("turn_right", command_names)
+
     def test_rejects_unknown_action(self) -> None:
         with self.assertRaises(ValueError):
             map_robot_action("unknown")

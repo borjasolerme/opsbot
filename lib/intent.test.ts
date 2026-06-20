@@ -1,18 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { resolveIntent } from "./intent";
+import { isIntentId, robotActionForIntent } from "./intent";
 
-describe("resolveIntent", () => {
-  it("returns the mocked demo schedule reply and robot action", () => {
-    expect(resolveIntent("demo_schedule")).toEqual({
-      reply: "Code freeze is at 17:00 and live demos start at 17:30.",
-      robot_action: "point_demo_queue"
-    });
+describe("intent helpers", () => {
+  it("maps supported intents to robot actions", () => {
+    expect(robotActionForIntent("demo_schedule")).toBe("point_demo_queue");
+    expect(robotActionForIntent("lost_item")).toBe("point_lost_found");
   });
 
-  it("falls back to idle for unknown intents", () => {
-    expect(resolveIntent("unknown")).toEqual({
-      reply: "I can help with check-in, lost items, chargers, or the demo schedule.",
-      robot_action: "idle"
-    });
+  it("treats unknown intents as idle", () => {
+    expect(robotActionForIntent("unknown")).toBe("idle");
+    expect(isIntentId("unknown")).toBe(false);
   });
 });

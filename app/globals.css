@@ -122,6 +122,14 @@ a:focus-visible {
   transform: translateY(1px);
 }
 
+.robot-stage[data-action="look_around"] .robot-pointer {
+  opacity: 0;
+}
+
+.robot-stage[data-action="look_around"] .robot-eye {
+  animation: robot-scan 900ms ease-in-out infinite alternate;
+}
+
 .robot-stage[data-speaking="true"] .robot-mouth {
   animation: robot-talk 420ms ease-in-out infinite;
   background: var(--foreground);
@@ -153,6 +161,16 @@ a:focus-visible {
   50% {
     height: 12px;
     width: 22px;
+  }
+}
+
+@keyframes robot-scan {
+  from {
+    transform: translateX(-3px);
+  }
+
+  to {
+    transform: translateX(3px);
   }
 }
 

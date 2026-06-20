@@ -8,6 +8,7 @@ OPS_BOT_ACTIONS = {
     "point_lost_found",
     "point_charger",
     "point_demo_queue",
+    "look_around",
     "wave",
     "idle",
 }
@@ -73,6 +74,15 @@ ACTION_COMMANDS: dict[str, tuple[RobotCommand, ...]] = {
         RobotCommand("turn_right", {"angle": 0.36, "duration": 0.7}),
         RobotCommand("wait", {"seconds": 0.1}),
         RobotCommand("turn_left", {"angle": 0.18, "duration": 0.4}),
+        RobotCommand("camera_default", {}),
+    ),
+    "look_around": ATTENTION_SCAN
+    + (
+        RobotCommand("turn_left", {"angle": 0.16, "duration": 0.35}),
+        RobotCommand("wait", {"seconds": 0.1}),
+        RobotCommand("turn_right", {"angle": 0.32, "duration": 0.7}),
+        RobotCommand("wait", {"seconds": 0.1}),
+        RobotCommand("turn_left", {"angle": 0.16, "duration": 0.35}),
         RobotCommand("camera_default", {}),
     ),
     "idle": (

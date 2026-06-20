@@ -6,6 +6,7 @@ from robot_bridge.cyberwave_adapter import (
     DEFAULT_REGISTRY_ID,
     SCENE_POSITIONS_BY_ACTION,
     _get_environment_reference,
+    _get_robot,
     _get_robot_mode,
     _should_free_roam,
     _should_update_scene_pose,
@@ -45,6 +46,52 @@ class CyberwaveAdapterTest(unittest.TestCase):
                 "borjas-workspace/envs/opsbot-hackathon-demo",
             )
 
+    def test_keeps_environment_uuid_unchanged(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "CYBERWAVE_WORKSPACE": "borjas-workspace",
+                "CYBERWAVE_ENVIRONMENT_ID": "075f2258-8e0f-4ce3-9e91-c00cb387cca8",
+            },
+            clear=True,
+        ):
+            self.assertEqual(
+                _get_environment_reference(),
+                "075f2258-8e0f-4ce3-9e91-c00cb387cca8",
+            )
+
+    def test_get_robot_uses_registry_twin_id_and_environment_uuid(self) -> None:
+        class CyberwaveClient:
+            def __init__(self) -> None:
+                self.twin_call: tuple[tuple[object, ...], dict[str, object]] | None = None
+
+            def twin(self, *args: object, **kwargs: object) -> object:
+                self.twin_call = (args, kwargs)
+                return object()
+
+        client = CyberwaveClient()
+        with patch.dict(
+            os.environ,
+            {
+                "CYBERWAVE_ROBOT_REGISTRY_ID": "waveshare/ugv-beast",
+                "CYBERWAVE_ROBOT_ID": "8599efec-fe5b-47ea-8040-78cd9e531d9a",
+                "CYBERWAVE_ENVIRONMENT_ID": "075f2258-8e0f-4ce3-9e91-c00cb387cca8",
+            },
+            clear=True,
+        ):
+            _get_robot(client)
+
+        self.assertEqual(
+            client.twin_call,
+            (
+                ("waveshare/ugv-beast",),
+                {
+                    "twin_id": "8599efec-fe5b-47ea-8040-78cd9e531d9a",
+                    "environment_id": "075f2258-8e0f-4ce3-9e91-c00cb387cca8",
+                },
+            ),
+        )
+
     def test_scene_rotation_is_enabled_for_simulation_visibility(self) -> None:
         with patch.dict(os.environ, {"CYBERWAVE_SIMULATION_VISIBILITY_MODE": "scene_edit"}):
             self.assertTrue(
@@ -73,6 +120,10 @@ class CyberwaveAdapterTest(unittest.TestCase):
         self.assertEqual(
             SCENE_POSITIONS_BY_ACTION["point_demo_queue"],
             {"x": 2.0, "y": -1.4, "z": 0.0},
+        )
+        self.assertEqual(
+            SCENE_POSITIONS_BY_ACTION["look_around"],
+            {"x": 0.0, "y": 0.0, "z": 0.0},
         )
 
     def test_robot_mode_prefers_robot_mode_env(self) -> None:
