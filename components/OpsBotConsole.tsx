@@ -15,10 +15,10 @@ import { intentOptions, type IntentId, type IntentResponse } from "@/lib/intent"
 type RequestState = "ready" | "calling" | "speaking" | "speech_unavailable" | "error";
 
 const robotActionLabels: Record<IntentResponse["robot_action"], string> = {
-  point_checkin: "Pointing To Check-In",
-  point_lost_found: "Pointing To Lost & Found",
-  point_charger: "Pointing To Chargers",
-  point_demo_queue: "Pointing To Demo Queue",
+  point_checkin: "Pointing to check-in",
+  point_lost_found: "Pointing to lost & found",
+  point_charger: "Pointing to chargers",
+  point_demo_queue: "Pointing to demo queue",
   wave: "Waving",
   idle: "Idle"
 };
@@ -38,9 +38,9 @@ export function OpsBotConsole() {
 
   const statusLabel = useMemo(() => {
     if (requestState === "calling") return "Calling /intent";
-    if (requestState === "speaking") return "Speaking Reply";
-    if (requestState === "speech_unavailable") return "Speech Unavailable";
-    if (requestState === "error") return "Function Error";
+    if (requestState === "speaking") return "Speaking reply";
+    if (requestState === "speech_unavailable") return "Speech unavailable";
+    if (requestState === "error") return "Function error";
     return "Ready";
   }, [requestState]);
 
@@ -97,7 +97,7 @@ export function OpsBotConsole() {
       >
         <div>
           <h1 id="page-title" className="text-[32px] font-semibold leading-10 tracking-normal">
-            Phone Front Desk
+            Phone front desk
           </h1>
         </div>
         <div
@@ -123,8 +123,8 @@ export function OpsBotConsole() {
       >
         <div className="flex min-w-0 flex-col gap-4">
           <div>
-            <p className="text-xs font-medium uppercase leading-4 text-muted-foreground">
-              Visitor Request
+            <p className="text-xs font-medium leading-4 text-muted-foreground">
+              Visitor request
             </p>
             <h2 className="mt-1 text-xl font-semibold leading-[26px] tracking-normal">
               Ask OpsBot
@@ -160,31 +160,22 @@ export function OpsBotConsole() {
           </div>
 
           <div className="rounded-md border border-border bg-secondary p-4" aria-live="polite">
-            <p className="mb-2 flex items-center gap-2 text-xs font-medium uppercase leading-4 text-muted-foreground">
+            <p className="mb-2 flex items-center gap-2 text-xs font-medium leading-4 text-muted-foreground">
               <Volume2 className="h-4 w-4" aria-hidden="true" />
-              Browser Reply
+              Browser reply
             </p>
             <p className="text-base leading-6 text-foreground">{reply}</p>
           </div>
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 border-t border-border pt-8 md:border-l md:border-t-0 md:pl-10 md:pt-0">
-          <div>
-            <p className="text-xs font-medium uppercase leading-4 text-muted-foreground">
-              Mock Robot Action
-            </p>
-            <h2 className="mt-1 text-xl font-semibold leading-[26px] tracking-normal">
-              {robotActionLabels[robotAction]}
-            </h2>
-          </div>
-
           <div
             className="robot-stage min-h-80 overflow-hidden rounded-md border border-border bg-secondary max-[420px]:min-h-[280px]"
             data-action={robotAction}
             aria-label={robotActionLabels[robotAction]}
           >
             <div className="absolute inset-4 grid grid-cols-2 gap-2">
-              {["Check-In", "Lost & Found", "Chargers", "Demo Queue"].map((label) => (
+              {["Check-in", "Lost & found", "Chargers", "Demo queue"].map((label) => (
                 <span
                   className="flex min-h-16 items-center justify-center rounded-md border border-border bg-background px-2 text-center text-xs leading-4 text-muted-foreground"
                   key={label}
@@ -200,13 +191,6 @@ export function OpsBotConsole() {
               </div>
               <div className="robot-pointer" />
             </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 text-muted-foreground">
-            <span>robot_action</span>
-            <code className="rounded-md border border-border bg-secondary px-1.5 py-1 font-mono text-[13px] leading-[18px] text-foreground">
-              {robotAction}
-            </code>
           </div>
         </div>
       </section>

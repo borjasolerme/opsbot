@@ -27,22 +27,22 @@ export const intentOptions: Array<{
 }> = [
   {
     id: "check_in",
-    label: "Check-In",
+    label: "Check-in",
     helper: "Arrival desk"
   },
   {
     id: "lost_item",
-    label: "Lost Item",
+    label: "Lost item",
     helper: "Staff handoff"
   },
   {
     id: "charger_request",
-    label: "Charger Request",
+    label: "Charger request",
     helper: "Accessories table"
   },
   {
     id: "demo_schedule",
-    label: "Demo Schedule",
+    label: "Demo schedule",
     helper: "Stage timing"
   }
 ];
