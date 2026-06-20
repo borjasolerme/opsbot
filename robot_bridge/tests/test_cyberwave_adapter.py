@@ -7,6 +7,7 @@ from robot_bridge.cyberwave_adapter import (
     SCENE_POSITIONS_BY_ACTION,
     _get_environment_reference,
     _get_robot_mode,
+    _should_free_roam,
     _should_update_scene_pose,
     _should_update_scene_rotation,
 )
@@ -89,6 +90,22 @@ class CyberwaveAdapterTest(unittest.TestCase):
     def test_robot_mode_falls_back_to_cyberwave_affect(self) -> None:
         with patch.dict(os.environ, {"CYBERWAVE_AFFECT": "simulation"}, clear=True):
             self.assertEqual(_get_robot_mode(), "simulation")
+
+    def test_free_roam_is_enabled_for_simulation_by_default(self) -> None:
+        with patch.dict(os.environ, {"ROBOT_MODE": "simulation"}, clear=True):
+            self.assertTrue(_should_free_roam())
+
+    def test_free_roam_is_disabled_for_live_by_default(self) -> None:
+        with patch.dict(os.environ, {"ROBOT_MODE": "live"}, clear=True):
+            self.assertFalse(_should_free_roam())
+
+    def test_free_roam_can_be_disabled(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"ROBOT_MODE": "simulation", "ROBOT_FREE_ROAM": "0"},
+            clear=True,
+        ):
+            self.assertFalse(_should_free_roam())
 
 
 if __name__ == "__main__":

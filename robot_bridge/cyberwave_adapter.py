@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import math
 import os
+import random
+import sys
+import threading
 import time
 from typing import Any
 
@@ -9,6 +12,8 @@ from .actions import RobotCommand, map_robot_action
 
 
 DEFAULT_REGISTRY_ID = "waveshare/ugv-beast"
+FREE_ROAM_X_BOUNDS = (-2.2, 2.2)
+FREE_ROAM_Y_BOUNDS = (-1.5, 1.5)
 SCENE_YAWS_BY_ACTION = {
     "point_checkin": -18.0,
     "point_lost_found": 18.0,
@@ -27,7 +32,7 @@ _LAST_SCENE_YAW: float | None = None
 _SCENE_NUDGE_DIRECTION = 1
 
 
-def send_robot_action(action: str) -> None:
+def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
     from cyberwave import Cyberwave
 
     client = Cyberwave()
@@ -45,12 +50,33 @@ def send_robot_action(action: str) -> None:
         f"twin_slug={getattr(robot, 'slug', None)}"
     )
 
-    if _should_update_scene_pose(mode, action):
+    sent_initial_command = False
+    update_scene_pose = _should_update_scene_pose(mode, action)
+    if update_scene_pose and wait_for_motion:
         _apply_scene_demo_pose(robot, action)
+        sent_initial_command = True
+    elif update_scene_pose:
+        _apply_scene_position(robot, action)
+        sent_initial_command = True
 
-    for command in map_robot_action(action):
-        _log_bridge(f"Cyberwave command: action={action} command={command.name} args={command.args}")
-        _execute_command(robot, command)
+    commands = map_robot_action(action)
+    if wait_for_motion:
+        _execute_commands(robot, action, commands)
+    else:
+        if update_scene_pose:
+            _run_scene_rotation_background(robot, action)
+
+        background_commands = commands
+        if not sent_initial_command and commands:
+            first_command = commands[0]
+            _log_bridge(
+                f"Cyberwave command: action={action} "
+                f"command={first_command.name} args={first_command.args}"
+            )
+            _execute_command(robot, first_command)
+            background_commands = commands[1:]
+
+        _run_commands_background(robot, action, background_commands)
 
     _log_bridge(f"Action sent: {action}")
 
@@ -132,6 +158,98 @@ def _execute_command(robot: Any, command: RobotCommand) -> None:
     raise RuntimeError(f"Cyberwave robot does not support command: {command.name}")
 
 
+def _execute_commands(robot: Any, action: str, commands: tuple[RobotCommand, ...]) -> None:
+    for command in commands:
+        _log_bridge(f"Cyberwave command: action={action} command={command.name} args={command.args}")
+        _execute_command(robot, command)
+
+
+def _run_commands_background(
+    robot: Any,
+    action: str,
+    commands: tuple[RobotCommand, ...],
+) -> None:
+    if not commands:
+        return
+
+    thread = threading.Thread(
+        target=_execute_background_commands,
+        args=(robot, action, commands),
+        daemon=True,
+    )
+    thread.start()
+
+
+def _execute_background_commands(
+    robot: Any,
+    action: str,
+    commands: tuple[RobotCommand, ...],
+) -> None:
+    try:
+        _execute_commands(robot, action, commands)
+        _execute_free_roam(robot, action)
+    except Exception as exc:
+        _log_bridge(f"Robot background motion failed: action={action} error={exc}")
+
+
+def _execute_free_roam(robot: Any, action: str) -> None:
+    if not _should_free_roam():
+        return
+
+    target_position = SCENE_POSITIONS_BY_ACTION.get(action)
+    if not target_position:
+        return
+
+    steps = max(0, int(os.getenv("ROBOT_FREE_ROAM_STEPS", "3")))
+    if steps == 0:
+        return
+
+    radius = max(0.0, float(os.getenv("ROBOT_FREE_ROAM_RADIUS", "0.42")))
+    delay = max(0.0, float(os.getenv("ROBOT_FREE_ROAM_STEP_DELAY", "0.45")))
+    rng = random.Random(f"{action}:{time.monotonic_ns()}")
+
+    _log_bridge(
+        "Robot free roam: "
+        f"action={action} steps={steps} radius={radius} "
+        f"x_bounds={FREE_ROAM_X_BOUNDS} y_bounds={FREE_ROAM_Y_BOUNDS}"
+    )
+
+    for step in range(steps):
+        offset_x = rng.uniform(-radius, radius)
+        offset_y = rng.uniform(-radius, radius)
+        roam_position = {
+            "x": _clamp(target_position["x"] + offset_x, *FREE_ROAM_X_BOUNDS),
+            "y": _clamp(target_position["y"] + offset_y, *FREE_ROAM_Y_BOUNDS),
+            "z": target_position["z"],
+        }
+        yaw = rng.uniform(-38.0, 38.0)
+
+        _log_bridge(
+            "Robot free roam step: "
+            f"{step + 1}/{steps} "
+            f"x={round(roam_position['x'], 3)} "
+            f"y={round(roam_position['y'], 3)} "
+            f"yaw={round(yaw, 2)}"
+        )
+        robot.edit_position(**roam_position)
+        robot.edit_rotation(yaw=yaw)
+        if step < steps - 1:
+            time.sleep(delay)
+
+
+def _should_free_roam() -> bool:
+    mode = _get_robot_mode()
+    if mode != "simulation" and os.getenv("ROBOT_FREE_ROAM_LIVE") != "1":
+        return False
+
+    value = os.getenv("ROBOT_FREE_ROAM", "1").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def _clamp(value: float, lower: float, upper: float) -> float:
+    return min(max(value, lower), upper)
+
+
 def _should_update_scene_rotation(mode: str, action: str) -> bool:
     visibility_mode = os.getenv("CYBERWAVE_SIMULATION_VISIBILITY_MODE", "scene_edit")
     return mode == "simulation" and visibility_mode == "scene_edit" and action in SCENE_YAWS_BY_ACTION
@@ -159,6 +277,39 @@ def _apply_scene_demo_pose(robot: Any, action: str) -> None:
     )
     _nudge_scene_position(robot, target_position)
     _smooth_scene_rotation(robot, target_yaw)
+
+
+def _apply_scene_position(robot: Any, action: str) -> None:
+    target_position = SCENE_POSITIONS_BY_ACTION[action]
+
+    _log_bridge(
+        "Cyberwave scene edit: "
+        f"action={action} "
+        f"edit_position x={target_position['x']} y={target_position['y']} z={target_position['z']}"
+    )
+    robot.edit_position(**target_position)
+
+
+def _run_scene_rotation_background(robot: Any, action: str) -> None:
+    target_yaw = SCENE_YAWS_BY_ACTION[action]
+    thread = threading.Thread(
+        target=_execute_background_scene_rotation,
+        args=(robot, action, target_yaw),
+        daemon=True,
+    )
+    thread.start()
+
+
+def _execute_background_scene_rotation(robot: Any, action: str, target_yaw: float) -> None:
+    try:
+        _log_bridge(
+            "Cyberwave scene edit: "
+            f"action={action} "
+            f"smooth_edit_rotation yaw={target_yaw}"
+        )
+        _smooth_scene_rotation(robot, target_yaw)
+    except Exception as exc:
+        _log_bridge(f"Robot background rotation failed: action={action} error={exc}")
 
 
 def _nudge_scene_position(robot: Any, target_position: dict[str, float]) -> None:
@@ -262,3 +413,42 @@ def _fallback_wave(robot: Any) -> None:
         return
 
     raise RuntimeError("Cyberwave robot does not support wave or a fallback gesture")
+
+
+def _print_current_pose(action: str) -> None:
+    from cyberwave import Cyberwave
+
+    client = Cyberwave()
+    client.affect(_get_robot_mode())
+    robot = _get_robot(client)
+    position = robot._get_current_position()
+    rotation = robot._get_current_rotation()
+    yaw = _yaw_from_rotation(rotation)
+
+    print(f"SDK verification: action={action}")
+    print(f"SDK verification: position={position}")
+    print(f"SDK verification: yaw={round(yaw, 2) if yaw is not None else None}")
+
+
+def _yaw_from_rotation(rotation: dict[str, float]) -> float | None:
+    try:
+        w = float(rotation["w"])
+        x = float(rotation["x"])
+        y = float(rotation["y"])
+        z = float(rotation["z"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    siny_cosp = 2.0 * (w * z + x * y)
+    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+    return math.degrees(math.atan2(siny_cosp, cosy_cosp))
+
+
+def main() -> None:
+    action = sys.argv[1] if len(sys.argv) > 1 else "point_demo_queue"
+    send_robot_action(action)
+    _print_current_pose(action)
+
+
+if __name__ == "__main__":
+    main()

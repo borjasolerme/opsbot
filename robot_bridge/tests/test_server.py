@@ -1,55 +1,58 @@
-import http.client
-import json
-import threading
 import unittest
-from http.server import ThreadingHTTPServer
+from contextlib import redirect_stdout
+from io import StringIO
 
-from robot_bridge.server import create_handler
+from fastapi.testclient import TestClient
+
+from robot_bridge.server import create_app
 
 
 class RobotBridgeServerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dispatched_actions: list[str] = []
-        handler = create_handler(self.dispatched_actions.append)
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        self.thread = threading.Thread(target=self.server.serve_forever)
-        self.thread.daemon = True
-        self.thread.start()
-        self.host, self.port = self.server.server_address
+        self.client = TestClient(create_app(self.dispatched_actions.append))
 
-    def tearDown(self) -> None:
-        self.server.shutdown()
-        self.thread.join()
-        self.server.server_close()
+    def test_post_action_accepts_and_dispatches(self) -> None:
+        response = self.client.post("/action", json={"action": "point_demo_queue"})
 
-    def test_post_action_dispatches_and_returns_ok(self) -> None:
-        status, payload = self._post_json("/action", {"action": "point_demo_queue"})
-
-        self.assertEqual(status, 200)
-        self.assertEqual(payload, {"ok": True, "action": "point_demo_queue"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"ok": True, "action": "point_demo_queue", "robot_status": "sent"},
+        )
         self.assertEqual(self.dispatched_actions, ["point_demo_queue"])
 
-    def test_unknown_action_returns_bad_request(self) -> None:
-        status, payload = self._post_json("/action", {"action": "unknown"})
+    def test_root_post_accepts_and_dispatches(self) -> None:
+        response = self.client.post("/", json={"action": "point_lost_found"})
 
-        self.assertEqual(status, 400)
-        self.assertEqual(payload["error"], "Unsupported or missing action")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["robot_status"], "sent")
+        self.assertEqual(self.dispatched_actions, ["point_lost_found"])
+
+    def test_unknown_action_returns_bad_request(self) -> None:
+        response = self.client.post("/action", json={"action": "unknown"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Unsupported or missing action")
         self.assertEqual(self.dispatched_actions, [])
 
-    def _post_json(self, path: str, body: dict[str, object]) -> tuple[int, dict[str, object]]:
-        connection = http.client.HTTPConnection(self.host, self.port, timeout=2)
-        connection.request(
-            "POST",
-            path,
-            body=json.dumps(body),
-            headers={"Content-Type": "application/json"},
-        )
-        response = connection.getresponse()
-        payload = json.loads(response.read().decode("utf-8"))
-        connection.close()
-        return response.status, payload
+    def test_health_returns_ok(self) -> None:
+        response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+
+    def test_dispatch_failure_returns_bad_gateway(self) -> None:
+        def failing_dispatcher(action: str) -> None:
+            raise RuntimeError("boom")
+
+        client = TestClient(create_app(failing_dispatcher))
+        with redirect_stdout(StringIO()):
+            response = client.post("/action", json={"action": "point_demo_queue"})
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json()["detail"], "Robot action failed")
 
 
 if __name__ == "__main__":
     unittest.main()
-

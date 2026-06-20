@@ -131,9 +131,9 @@ The web app still renders the mocked robot state immediately from the Edge Funct
 
 ## Robot Bridge
 
-The robot bridge is a small Python service in `robot_bridge/`.
+The robot bridge is a small FastAPI service in `robot_bridge/`.
 
-It receives an OpsBot robot action, maps it to robot behavior, and sends the command to Cyberwave. Cyberwave SDK code only lives in `robot_bridge/cyberwave_adapter.py`.
+It receives an OpsBot robot action, maps it to Cyberwave behavior, and returns `sent` after Cyberwave accepts the initial SDK position update. Rotation, camera, and drive gestures continue inside the bridge process so the Supabase Edge Function does not hit its wall-clock limit. Cyberwave SDK code only lives in `robot_bridge/cyberwave_adapter.py`.
 
 Run it locally:
 
@@ -144,6 +144,8 @@ source .venv/bin/activate
 pip install -r robot_bridge/requirements.txt
 python -m robot_bridge.server
 ```
+
+It waits for the Cyberwave adapter to apply the first visible Cyberwave position update before returning `robot_status: "sent"`, so `sent` means Cyberwave accepted the action, not just that the HTTP request reached the bridge.
 
 Send a test action:
 
@@ -156,8 +158,16 @@ curl -X POST http://127.0.0.1:8765/action \
 Expected response:
 
 ```json
-{ "ok": true, "action": "point_demo_queue" }
+{ "ok": true, "action": "point_demo_queue", "robot_status": "sent" }
 ```
+
+Bypass Next.js and Supabase entirely when debugging Cyberwave:
+
+```bash
+npm run robot:send -- point_lost_found
+```
+
+That command sends directly through the Cyberwave SDK and prints the stored twin pose after the action.
 
 Bridge configuration:
 
@@ -170,6 +180,9 @@ export CYBERWAVE_ROBOT_ID="your_twin_uuid_or_slug"
 export ROBOT_MODE="simulation"
 export CYBERWAVE_AFFECT="simulation"
 export CYBERWAVE_SIMULATION_VISIBILITY_MODE="scene_edit"
+export ROBOT_FREE_ROAM="1"
+export ROBOT_FREE_ROAM_STEPS="3"
+export ROBOT_FREE_ROAM_RADIUS="0.42"
 ```
 
 If `CYBERWAVE_ROBOT_ID` is not set, the adapter falls back to `CYBERWAVE_ROBOT_REGISTRY_ID` (`waveshare/ugv-beast` by default) and `CYBERWAVE_ENVIRONMENT_ID`.
@@ -185,7 +198,11 @@ Action sent: point_demo_queue
 
 `CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene pose through Cyberwave REST after publishing the MQTT movement command. This makes OpsBot actions visible in the Cyberwave viewport even when no mission workflow execution is created or the Cyberwave panel says there is no active simulation runtime.
 
-The Cyberwave MCP control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. Direct joint targets are listed as not currently available for this twin, so the bridge uses small chassis movements plus camera pan/tilt instead of raw wheel or pan/tilt joint commands.
+The Cyberwave MCP server is useful for verification. In this environment it reports one twin, `UGV Beast`, in `075f2258-8e0f-4ce3-9e91-c00cb387cca8`, and the same twin UUID used by the SDK: `8599efec-fe5b-47ea-8040-78cd9e531d9a`. MCP also confirms the environment has no workflows, areas, or waypoints yet. The bridge still uses the Python SDK for production dispatch because that keeps Cyberwave logic isolated in one Python service.
+
+The Cyberwave control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. Direct joint targets are listed as not currently available for this twin, so the bridge uses small chassis movements plus camera pan/tilt instead of raw wheel or pan/tilt joint commands.
+
+`ROBOT_FREE_ROAM=1` lets the bridge add a few autonomous-looking scene movements after the destination action. It chooses small random offsets inside the demo rectangle (`x=-2.2..2.2`, `y=-1.5..1.5`) so the robot can look like it is thinking and repositioning without leaving the front-desk area. Free roam runs only in simulation by default; do not enable it for live hardware unless the physical robot safety boundary is confirmed.
 
 Current UGV Beast action mapping:
 
@@ -201,24 +218,36 @@ Current UGV Beast action mapping:
 If the bridge returns `ok: true` but the Cyberwave viewport does not move:
 
 - Sign back into Cyberwave if the page says your login expired.
-- Start the Cyberwave simulation. The right panel should not say `No active simulation`.
+- Start the Cyberwave simulation or refresh the Cyberwave editor. External SDK scene edits update the stored twin pose immediately, but the editor viewport may not live-refresh every external edit while it is already open.
 - Keep `npm run dev:robot` open and check for `Cyberwave target` and `Cyberwave command` lines.
 - Run the direct bridge curl before testing the OpsBot UI.
+- Verify the stored Cyberwave pose with `npm run robot:send -- point_charger`; it prints the twin pose after dispatch.
 
-To connect the Supabase Edge Function to the bridge, set:
-
-```bash
-export ROBOT_BRIDGE_URL="http://host.docker.internal:8765"
-```
-
-Use `host.docker.internal` for local Supabase because the Edge Function runs inside Docker while the bridge runs on your Mac.
-The `npm run dev:intent` script loads `.env.local` so this value is available to the Edge Function.
-
-Bind the bridge to `0.0.0.0` locally so Supabase Docker can reach it:
+For the local Supabase stack, run the robot bridge in Docker on the same Supabase network. The Edge Function runs inside Docker, so this is more reliable than pointing it at a Mac host process.
 
 ```bash
-export ROBOT_BRIDGE_HOST="0.0.0.0"
+docker run -d \
+  --name opsbot_robot_bridge \
+  --network supabase_network_opsbot \
+  -p 8765:8765 \
+  --env-file .env.local \
+  -e ROBOT_BRIDGE_HOST=0.0.0.0 \
+  -e ROBOT_BRIDGE_PORT=8765 \
+  -v "$PWD:/app" \
+  -w /app \
+  python:3.12-slim \
+  sh -lc 'pip install --no-cache-dir -r robot_bridge/requirements.txt >/tmp/opsbot-pip.log 2>&1 && exec uvicorn robot_bridge.server:app --host 0.0.0.0 --port 8765 --log-level info'
 ```
+
+The first Docker start can take a minute because the Cyberwave SDK installs `numpy` and related dependencies. Wait for `Uvicorn running on http://0.0.0.0:8765` in `docker logs opsbot_robot_bridge`, then test `http://127.0.0.1:8765/health`.
+
+Then set the Edge Function bridge URL to the Docker service name:
+
+```bash
+ROBOT_BRIDGE_URL="http://opsbot_robot_bridge:8765"
+```
+
+Restart `npm run dev:intent` after changing `.env.local`; the Edge runtime only reads env vars at startup.
 
 To prove the demo triggered the robot, query the latest Supabase log row:
 

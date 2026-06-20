@@ -6,11 +6,12 @@
     "dev": "next dev",
     "dev:intent": "supabase functions serve --no-verify-jwt --env-file .env.local",
     "dev:robot": "set -a; . ./.env.local; set +a; .venv/bin/python -m robot_bridge.server",
+    "robot:send": "set -a; . ./.env.local; set +a; .venv/bin/python -m robot_bridge.cyberwave_adapter",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:robot": "python3 -m unittest discover -s robot_bridge/tests"
+    "test:robot": ".venv/bin/python -m unittest discover -s robot_bridge/tests"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.3.0",

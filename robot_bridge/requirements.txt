@@ -1,2 +1,4 @@
 cyberwave
-
+fastapi
+httpx
+uvicorn
