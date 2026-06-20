@@ -122,6 +122,30 @@ a:focus-visible {
   transform: translateY(1px);
 }
 
+.robot-loader {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: none;
+  height: 34px;
+  width: 34px;
+  border: 3px solid var(--border);
+  border-top-color: var(--foreground);
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+}
+
+.robot-stage[data-loading="true"] .robot-loader {
+  display: block;
+  animation: robot-loading 760ms linear infinite;
+}
+
+.robot-stage[data-loading="true"] .robot-eye,
+.robot-stage[data-loading="true"] .robot-mouth,
+.robot-stage[data-loading="true"] .robot-pointer {
+  opacity: 0;
+}
+
 .robot-stage[data-action="look_around"] .robot-pointer {
   opacity: 0;
 }
@@ -171,6 +195,16 @@ a:focus-visible {
 
   to {
     transform: translateX(3px);
+  }
+}
+
+@keyframes robot-loading {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
 

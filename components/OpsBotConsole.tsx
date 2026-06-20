@@ -466,30 +466,13 @@ export function OpsBotConsole() {
             {isRecording ? "Stop" : "Talk"}
           </Button>
 
-          {conversation.length > 0 ? (
-            <div className="mt-4 max-h-48 overflow-y-auto rounded-[18px] border border-border bg-background p-3 text-sm leading-5">
-              {conversation.slice(-4).map((turn, index) => (
-                <p
-                  className={cn(
-                    "py-1",
-                    turn.role === "assistant" ? "text-foreground" : "text-muted-foreground"
-                  )}
-                  key={`${turn.role}-${index}-${turn.content.slice(0, 12)}`}
-                >
-                  <span className="font-medium">
-                    {turn.role === "assistant" ? "OpsBot" : "You"}:
-                  </span>{" "}
-                  {turn.content}
-                </p>
-              ))}
-            </div>
-          ) : null}
         </div>
 
         <div className="flex min-w-0 flex-col md:pt-[70px]">
           <div
             className="robot-stage h-full min-h-80 overflow-hidden rounded-[28px] border border-border bg-secondary max-[420px]:min-h-[280px]"
             data-action={robotAction}
+            data-loading={isBusy}
             data-speaking={requestState === "speaking"}
             aria-label={robotActionLabels[robotAction]}
           >
@@ -521,6 +504,7 @@ export function OpsBotConsole() {
                 <span className="robot-eye h-3 w-3 rounded-full bg-foreground" />
               </div>
               <div className="robot-mouth mx-auto mt-6 h-1 w-9 rounded-full bg-border" />
+              <div className="robot-loader" />
               <div className="robot-pointer" />
             </div>
           </div>
