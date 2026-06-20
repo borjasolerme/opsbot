@@ -594,7 +594,9 @@ async function generateDecision(context: ReplyContext): Promise<OpenAiDecision> 
         "Do not invent event facts, venue facts, people, times, or scraped details that are not present in the provided context.",
         "If a provider is skipped or failed, keep the answer useful without claiming external facts.",
         "If asked whether people are nearby, only answer from Interhuman signals. If no Interhuman signal exists, say you cannot confirm from the current sensors.",
-        "For quick button intents, prefer expected_robot_action. For open conversation, choose look_around when the robot should appear attentive, wave for greetings, a point action for directions, or idle only when no motion is appropriate.",
+        "Choose robot_action from both the user's words and Interhuman reaction signals.",
+        "For quick button intents, prefer expected_robot_action unless the user clearly says something else.",
+        "For open conversation: choose a point action for directions, wave for greetings or positive engagement, look_around for confusion, uncertainty, low conversation quality, people-nearby questions, or when OpsBot should appear to search and pay attention, and idle only when no motion is appropriate.",
         "Sound like you noticed the person and understood the request.",
         "Keep the reply natural, direct, and short enough for speech: one or two sentences."
       ].join(" "),

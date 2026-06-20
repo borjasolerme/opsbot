@@ -264,12 +264,10 @@ export CYBERWAVE_ROBOT_ID="8599efec-fe5b-47ea-8040-78cd9e531d9a"
 export ROBOT_MODE="simulation"
 export CYBERWAVE_AFFECT="simulation"
 export CYBERWAVE_SIMULATION_VISIBILITY_MODE="scene_edit"
-export CYBERWAVE_WORKFLOW_POINT_CHECKIN="887173ea-eb5c-4d70-84d2-9178c6d3205a"
-export CYBERWAVE_WORKFLOW_POINT_LOST_FOUND="d0ec2fe3-213a-4183-a4eb-5e517476163d"
-export CYBERWAVE_WORKFLOW_POINT_CHARGER="e0913288-261f-46c4-9980-bfd3e84b167a"
-export CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE="b171a1f3-672e-4f39-812f-f6b1f29ff795"
-export CYBERWAVE_WORKFLOW_LOOK_AROUND="01fd77e5-612c-4bdb-9428-af9b3aa4d503"
-export CYBERWAVE_WORKFLOW_STRICT="0"
+export CYBERWAVE_SCENE_POSITION_STEPS="12"
+export CYBERWAVE_SCENE_POSITION_STEP_DELAY="0.06"
+export CYBERWAVE_CAMERA_JOINT_STEPS="4"
+export CYBERWAVE_CAMERA_JOINT_STEP_DELAY="0.04"
 export ROBOT_FREE_ROAM="1"
 export ROBOT_FREE_ROAM_STEPS="3"
 export ROBOT_FREE_ROAM_RADIUS="0.42"
@@ -288,31 +286,11 @@ Action sent: point_demo_queue
 
 `CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene pose through Cyberwave REST after publishing the MQTT movement command. This gives the hackathon demo a visible SDK-driven movement path even if the Cyberwave simulation panel says there is no active simulation runtime.
 
-Cyberwave MCP was used to create named waypoints and workflows in the hackathon environment. The bridge triggers the workflow for the selected action first, then continues with the Python SDK pose and movement commands. `CYBERWAVE_WORKFLOW_STRICT=0` keeps workflow dispatch non-fatal for the demo: if the workflow runner returns an error, the bridge logs it and still sends the SDK command path.
+The bridge intentionally uses the Cyberwave Python SDK for dispatch instead of Cyberwave workflows. The generated manual workflows created error cards in Cyberwave because the workflow executor requires trigger-node metadata that the SDK trigger wrapper does not preserve. Keeping dispatch in the bridge gives the demo one reliable path: SDK scene pose updates, UGV Beast wheel commands, and UGV Beast camera/head commands.
 
-MCP-created waypoints:
+The Cyberwave control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. The bridge publishes the UGV Beast catalog camera commands (`camera_left`, `camera_right`, `camera_up`, `camera_down`, `camera_default`) and also sends direct pan/tilt joint updates for `pt_base_link_to_pt_link1` and `pt_link1_to_pt_link2` so the head is visible in the Cyberwave viewport.
 
-| Waypoint ID | Demo target |
-| --- | --- |
-| `opsbot_checkin` | Check-in area |
-| `opsbot_lost_found` | Lost and found area |
-| `opsbot_charger` | Charger area |
-| `opsbot_demo_queue` | Demo queue area |
-| `opsbot_center` | Look-around center point |
-
-MCP-created workflows:
-
-| OpsBot action | Env var | Workflow UUID |
-| --- | --- | --- |
-| `point_checkin` | `CYBERWAVE_WORKFLOW_POINT_CHECKIN` | `887173ea-eb5c-4d70-84d2-9178c6d3205a` |
-| `point_lost_found` | `CYBERWAVE_WORKFLOW_POINT_LOST_FOUND` | `d0ec2fe3-213a-4183-a4eb-5e517476163d` |
-| `point_charger` | `CYBERWAVE_WORKFLOW_POINT_CHARGER` | `e0913288-261f-46c4-9980-bfd3e84b167a` |
-| `point_demo_queue` | `CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE` | `b171a1f3-672e-4f39-812f-f6b1f29ff795` |
-| `look_around` | `CYBERWAVE_WORKFLOW_LOOK_AROUND` | `01fd77e5-612c-4bdb-9428-af9b3aa4d503` |
-
-The Cyberwave MCP server is also useful for verification. In this environment it reports one twin, `UGV Beast`, in `075f2258-8e0f-4ce3-9e91-c00cb387cca8`, and the same twin UUID used by the SDK: `8599efec-fe5b-47ea-8040-78cd9e531d9a`. The bridge still keeps Cyberwave logic isolated in one Python service.
-
-The Cyberwave control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. Direct joint targets are listed as not currently available for this twin, so the bridge uses small chassis movements plus camera pan/tilt instead of raw wheel or pan/tilt joint commands.
+The scene position path is intentionally smoothed. `CYBERWAVE_SCENE_POSITION_STEPS` and `CYBERWAVE_SCENE_POSITION_STEP_DELAY` make the stored twin pose move in small increments instead of jumping from one waypoint to another. This is only a demo visibility path; the SDK still sends the UGV Beast wheel commands through Cyberwave.
 
 `ROBOT_FREE_ROAM=1` lets the bridge add a few autonomous-looking scene movements after the destination action. It chooses small random offsets inside the demo rectangle (`x=-2.2..2.2`, `y=-1.5..1.5`) so the robot can look like it is thinking and repositioning without leaving the front-desk area. Free roam runs only in simulation by default; do not enable it for live hardware unless the physical robot safety boundary is confirmed.
 

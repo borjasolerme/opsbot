@@ -31,22 +31,29 @@ SCENE_POSITIONS_BY_ACTION = {
     "look_around": {"x": 0.0, "y": 0.0, "z": 0.0},
     "idle": {"x": 0.0, "y": 0.0, "z": 0.0},
 }
-WAYPOINT_IDS_BY_ACTION = {
-    "point_checkin": "opsbot_checkin",
-    "point_lost_found": "opsbot_lost_found",
-    "point_charger": "opsbot_charger",
-    "point_demo_queue": "opsbot_demo_queue",
-    "look_around": "opsbot_center",
-}
-WORKFLOW_ENV_KEYS_BY_ACTION = {
-    "point_checkin": "CYBERWAVE_WORKFLOW_POINT_CHECKIN",
-    "point_lost_found": "CYBERWAVE_WORKFLOW_POINT_LOST_FOUND",
-    "point_charger": "CYBERWAVE_WORKFLOW_POINT_CHARGER",
-    "point_demo_queue": "CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE",
-    "look_around": "CYBERWAVE_WORKFLOW_LOOK_AROUND",
+CAMERA_JOINT_POSITIONS_BY_COMMAND = {
+    "camera_default": {
+        "pt_base_link_to_pt_link1": 0.0,
+        "pt_link1_to_pt_link2": 0.0,
+    },
+    "camera_left": {
+        "pt_base_link_to_pt_link1": 0.45,
+    },
+    "camera_right": {
+        "pt_base_link_to_pt_link1": -0.45,
+    },
+    "camera_up": {
+        "pt_link1_to_pt_link2": -0.32,
+    },
+    "camera_down": {
+        "pt_link1_to_pt_link2": 0.32,
+    },
 }
 _LAST_SCENE_YAW: float | None = None
-_SCENE_NUDGE_DIRECTION = 1
+_LAST_CAMERA_JOINTS = {
+    "pt_base_link_to_pt_link1": 0.0,
+    "pt_link1_to_pt_link2": 0.0,
+}
 
 
 def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
@@ -66,13 +73,6 @@ def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
         f"twin_uuid={getattr(robot, 'uuid', None)} "
         f"twin_slug={getattr(robot, 'slug', None)}"
     )
-
-    try:
-        _trigger_workflow_if_configured(client, action)
-    except Exception as exc:
-        _log_bridge(f"Cyberwave workflow trigger failed: action={action} error={exc}")
-        if _is_workflow_strict():
-            raise
 
     sent_initial_command = False
     update_scene_pose = _should_update_scene_pose(mode, action)
@@ -104,43 +104,6 @@ def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
         _run_commands_background(robot, action, background_commands)
 
     _log_bridge(f"Action sent: {action}")
-
-
-def _trigger_workflow_if_configured(client: Any, action: str) -> None:
-    workflow_id = _get_workflow_id(action)
-    if not workflow_id:
-        return
-
-    inputs = {
-        "twin_uuid": os.getenv("CYBERWAVE_ROBOT_ID", "").strip(),
-        "waypoint_id": WAYPOINT_IDS_BY_ACTION.get(action),
-    }
-    filtered_inputs = {key: value for key, value in inputs.items() if value}
-
-    _log_bridge(
-        "Cyberwave workflow trigger: "
-        f"action={action} workflow={workflow_id} inputs={filtered_inputs}"
-    )
-    run = client.workflows.trigger(workflow_id, inputs=filtered_inputs)
-    _log_bridge(
-        "Cyberwave workflow run: "
-        f"action={action} workflow={workflow_id} "
-        f"run_uuid={getattr(run, 'uuid', None)} status={getattr(run, 'status', None)}"
-    )
-
-
-def _get_workflow_id(action: str) -> str | None:
-    env_key = WORKFLOW_ENV_KEYS_BY_ACTION.get(action)
-    if not env_key:
-        return None
-
-    workflow_id = os.getenv(env_key, "").strip()
-    return workflow_id or None
-
-
-def _is_workflow_strict() -> bool:
-    value = os.getenv("CYBERWAVE_WORKFLOW_STRICT", "0").strip().lower()
-    return value in {"1", "true", "yes", "on"}
 
 
 def _get_robot(client: Any) -> Any:
@@ -217,6 +180,10 @@ def _execute_command(robot: Any, command: RobotCommand) -> None:
         _stop_robot(robot)
         return
 
+    if command.name in CAMERA_JOINT_POSITIONS_BY_COMMAND:
+        _execute_camera_command(robot, command.name)
+        return
+
     method = getattr(robot, command.name, None)
     if callable(method):
         method(**command.args)
@@ -233,6 +200,74 @@ def _execute_command(robot: Any, command: RobotCommand) -> None:
         return
 
     raise RuntimeError(f"Cyberwave robot does not support command: {command.name}")
+
+
+def _execute_camera_command(robot: Any, command_name: str) -> None:
+    commands = getattr(robot, "commands", None)
+    dynamic_method = getattr(commands, command_name, None) if commands else None
+    if callable(dynamic_method):
+        try:
+            dynamic_method()
+        except Exception as exc:
+            _log_bridge(f"Cyberwave camera command failed: command={command_name} error={exc}")
+
+    target_joints = _camera_joint_target(command_name)
+    if target_joints:
+        try:
+            _smooth_camera_joints(robot, target_joints)
+        except Exception as exc:
+            _log_bridge(f"Cyberwave camera joint update failed: command={command_name} error={exc}")
+
+
+def _camera_joint_target(command_name: str) -> dict[str, float]:
+    return {
+        **_LAST_CAMERA_JOINTS,
+        **CAMERA_JOINT_POSITIONS_BY_COMMAND[command_name],
+    }
+
+
+def _smooth_camera_joints(robot: Any, target_joints: dict[str, float]) -> None:
+    global _LAST_CAMERA_JOINTS
+
+    steps = max(1, int(os.getenv("CYBERWAVE_CAMERA_JOINT_STEPS", "4")))
+    delay = max(0.0, float(os.getenv("CYBERWAVE_CAMERA_JOINT_STEP_DELAY", "0.04")))
+    start_joints = dict(_LAST_CAMERA_JOINTS)
+
+    for step in range(1, steps + 1):
+        eased = _ease_in_out(step / steps)
+        positions = {
+            name: start_joints.get(name, 0.0)
+            + (target - start_joints.get(name, 0.0)) * eased
+            for name, target in target_joints.items()
+        }
+        _publish_joint_positions(robot, positions)
+        if step < steps:
+            time.sleep(delay)
+
+    _LAST_CAMERA_JOINTS = target_joints
+
+
+def _publish_joint_positions(robot: Any, positions: dict[str, float]) -> None:
+    if not positions:
+        return
+
+    resolver = getattr(robot, "_resolve_topic_and_payload", None)
+    publisher = getattr(robot, "_publish_resolved", None)
+    if callable(resolver) and callable(publisher):
+        resolved = resolver(
+            command="joint_update",
+            data={"positions": positions},
+            channel="joint_update",
+        )
+        publisher(resolved)
+        return
+
+    mqtt = getattr(getattr(robot, "client", None), "mqtt", None)
+    if mqtt is not None and hasattr(mqtt, "update_joints_state"):
+        mqtt.update_joints_state(robot.uuid, positions)
+        return
+
+    raise RuntimeError("Cyberwave robot does not support camera joint updates")
 
 
 def _execute_commands(robot: Any, action: str, commands: tuple[RobotCommand, ...]) -> None:
@@ -349,10 +384,10 @@ def _apply_scene_demo_pose(robot: Any, action: str) -> None:
     _log_bridge(
         "Cyberwave scene edit: "
         f"action={action} "
-        f"edit_position x={target_position['x']} y={target_position['y']} z={target_position['z']} "
+        f"smooth_edit_position x={target_position['x']} y={target_position['y']} z={target_position['z']} "
         f"smooth_edit_rotation yaw={target_yaw}"
     )
-    _nudge_scene_position(robot, target_position)
+    _smooth_scene_position(robot, target_position)
     _smooth_scene_rotation(robot, target_yaw)
 
 
@@ -362,9 +397,9 @@ def _apply_scene_position(robot: Any, action: str) -> None:
     _log_bridge(
         "Cyberwave scene edit: "
         f"action={action} "
-        f"edit_position x={target_position['x']} y={target_position['y']} z={target_position['z']}"
+        f"smooth_edit_position x={target_position['x']} y={target_position['y']} z={target_position['z']}"
     )
-    robot.edit_position(**target_position)
+    _smooth_scene_position(robot, target_position)
 
 
 def _run_scene_rotation_background(robot: Any, action: str) -> None:
@@ -389,20 +424,43 @@ def _execute_background_scene_rotation(robot: Any, action: str, target_yaw: floa
         _log_bridge(f"Robot background rotation failed: action={action} error={exc}")
 
 
-def _nudge_scene_position(robot: Any, target_position: dict[str, float]) -> None:
-    global _SCENE_NUDGE_DIRECTION
+def _smooth_scene_position(robot: Any, target_position: dict[str, float]) -> None:
+    start_position = _get_current_position(robot)
+    if start_position is None:
+        robot.edit_position(**target_position)
+        return
 
-    nudge = float(os.getenv("CYBERWAVE_SCENE_POSITION_NUDGE", "0.75"))
-    delay = float(os.getenv("CYBERWAVE_SCENE_POSITION_NUDGE_DELAY", "0.18"))
-    nudged_position = {
-        **target_position,
-        "x": target_position["x"] + nudge * _SCENE_NUDGE_DIRECTION,
-    }
+    steps = max(1, int(os.getenv("CYBERWAVE_SCENE_POSITION_STEPS", "12")))
+    delay = max(0.0, float(os.getenv("CYBERWAVE_SCENE_POSITION_STEP_DELAY", "0.06")))
+    for step in range(1, steps + 1):
+        eased = _ease_in_out(step / steps)
+        position = {
+            axis: start_position[axis] + (target_position[axis] - start_position[axis]) * eased
+            for axis in ("x", "y", "z")
+        }
+        robot.edit_position(**position)
+        if step < steps:
+            time.sleep(delay)
 
-    robot.edit_position(**nudged_position)
-    time.sleep(delay)
-    robot.edit_position(**target_position)
-    _SCENE_NUDGE_DIRECTION *= -1
+
+def _get_current_position(robot: Any) -> dict[str, float] | None:
+    get_position = getattr(robot, "_get_current_position", None)
+    if not callable(get_position):
+        return None
+
+    try:
+        position = get_position()
+    except Exception:
+        return None
+
+    try:
+        return {
+            "x": float(position["x"]),
+            "y": float(position["y"]),
+            "z": float(position["z"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def _smooth_scene_rotation(robot: Any, target_yaw: float) -> None:
