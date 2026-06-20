@@ -108,7 +108,7 @@ npm audit --omit=dev
 ## UI Stack
 
 - Tailwind CSS v4 for utility-first styling.
-- shadcn/ui for local Button and Card primitives.
+- shadcn/ui for the local Button primitive.
 - Nice Design tokens are mapped into Tailwind CSS variables in `app/globals.css`.
 
 ## Important Constraints
