@@ -96,9 +96,6 @@ export function OpsBotConsole() {
         aria-labelledby="page-title"
       >
         <div>
-          <p className="mb-1 text-xs font-medium uppercase leading-4 text-muted-foreground">
-            OpsBot Mock Slice
-          </p>
           <h1 id="page-title" className="text-[32px] font-semibold leading-10 tracking-normal">
             Phone Front Desk
           </h1>
