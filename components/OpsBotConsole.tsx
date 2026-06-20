@@ -204,6 +204,11 @@ export function OpsBotConsole() {
     requestState === "speaking" ||
     requestState === "robot_dispatching";
   const primarySignal = interhumanSummary?.primary_signal;
+  const interhumanSignalLabel = primarySignal
+    ? humanizeSignalLabel(primarySignal.type)
+    : interhumanSummary?.engagement_state
+      ? humanizeSignalLabel(interhumanSummary.engagement_state)
+      : null;
   const activePipelineStatus: PipelineStatus =
     requestState === "listening" ||
     requestState === "calling" ||
@@ -691,6 +696,13 @@ export function OpsBotConsole() {
               <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
                 {primarySignal.rationale}
               </p>
+            )}
+            {interhumanSignalLabel && activePipelineCopy.label !== "Interhuman signal" && (
+              <div className="mt-2 rounded-[10px] border border-border/80 bg-background/72 px-2 py-1.5 backdrop-blur">
+                <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground">
+                  {interhumanSignalLabel}
+                </p>
+              </div>
             )}
           </div>
         </div>
