@@ -1,11 +1,11 @@
 # OpsBot Architecture
 
-OpsBot is a fixed-table AI front desk for coworkings and events. Visitors interact from any iPhone through a web app that acts as the robot face, speaker, and UI.
+OpsBot is a fixed-table AI front desk for coworkings and events. Visitors interact from any phone browser through a web app that acts as the robot face, speaker, and UI.
 
 ## System Shape
 
 ```txt
-iPhone web app
+Phone web app
   -> Next.js frontend
   -> Supabase Edge Function /intent
   -> Supabase Postgres logs
@@ -24,6 +24,6 @@ iPhone web app
 
 - Fixed table only.
 - Robot does not move between rooms.
-- Any iPhone can be the robot face/speaker/UI through the web app.
+- Any phone can be the robot face/speaker/UI through the web app.
 - Robot hardware action is mocked first.
 - No Python/FastAPI backend for the MVP.
