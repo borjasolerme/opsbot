@@ -3,7 +3,6 @@
 import {
   Activity,
   BatteryCharging,
-  Camera,
   CheckCircle2,
   Clock3,
   Mic,
@@ -36,6 +35,7 @@ type RequestState =
   | "speech_unavailable"
   | "error";
 type ConversationTurn = { role: "user" | "assistant"; content: string };
+type PipelineStatus = "idle" | "active" | "done" | "failed" | "skipped";
 type InteractionMedia = {
   media_base64: string;
   media_mime_type: string;
@@ -55,6 +55,14 @@ const robotStatusLabels: Record<RobotStatus, string> = {
   sent: "Robot: sent",
   failed: "Robot: failed",
   skipped: "Robot: skipped"
+};
+
+const pipelineStatusClassNames: Record<PipelineStatus, string> = {
+  idle: "bg-muted-foreground/35",
+  active: "bg-warning",
+  done: "bg-success",
+  failed: "bg-destructive",
+  skipped: "bg-muted-foreground/45"
 };
 
 const intentIcons: Record<IntentId, ComponentType<{ className?: string }>> = {
@@ -164,6 +172,7 @@ export function OpsBotConsole() {
   const [isRecording, setIsRecording] = useState(false);
   const [cameraPreviewStream, setCameraPreviewStream] = useState<MediaStream | null>(null);
   const [interhumanSummary, setInterhumanSummary] = useState<InterhumanSummary | null>(null);
+  const [hasPipelineResult, setHasPipelineResult] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -179,6 +188,61 @@ export function OpsBotConsole() {
   }, [requestState]);
   const isBusy = requestState === "calling" || requestState === "listening";
   const primarySignal = interhumanSummary?.primary_signal;
+  const pipelineLabel = useMemo(() => {
+    if (requestState === "listening") return "Now: Capturing clip";
+    if (requestState === "calling") return "Now: Edge processing";
+    if (requestState === "error") return "Now: Failed";
+    if (requestState === "speaking") return "Now: Speaking reply";
+    if (hasPipelineResult) return "Now: Response ready";
+    return "Now: Standby";
+  }, [hasPipelineResult, requestState]);
+  const pipelineSteps = useMemo(() => {
+    const isProcessing = requestState === "calling";
+    const isFailed = requestState === "error";
+    const resultStatus = isFailed ? "failed" : hasPipelineResult ? "done" : "idle";
+    const interhumanStatus =
+      interhumanSummary?.status === "analyzed"
+        ? "done"
+        : interhumanSummary?.status === "failed"
+          ? "failed"
+          : interhumanSummary?.status === "skipped"
+            ? "skipped"
+            : resultStatus;
+    const cyberwaveStatus =
+      robotStatus === "sent"
+        ? "done"
+        : robotStatus === "failed"
+          ? "failed"
+          : robotStatus === "skipped" && hasPipelineResult
+            ? "skipped"
+            : resultStatus;
+
+    return [
+      {
+        label: "Interhuman",
+        helper: "signal",
+        status: isProcessing ? "active" : interhumanStatus
+      },
+      {
+        label: "ScrapeGraph",
+        helper: "context",
+        status: isProcessing ? "active" : resultStatus
+      },
+      {
+        label: "Cyberwave",
+        helper: "robot",
+        status: isProcessing ? "active" : cyberwaveStatus
+      }
+    ] satisfies Array<{ label: string; helper: string; status: PipelineStatus }>;
+  }, [hasPipelineResult, interhumanSummary?.status, requestState, robotStatus]);
+  const activePipelineStatus: PipelineStatus =
+    requestState === "listening" || requestState === "calling"
+      ? "active"
+      : requestState === "error"
+        ? "failed"
+        : hasPipelineResult
+          ? "done"
+          : "idle";
 
   useEffect(() => {
     const video = videoRef.current;
@@ -288,6 +352,7 @@ export function OpsBotConsole() {
     const requestConversation = conversation;
     setRobotStatus("skipped");
     setInterhumanSummary(null);
+    setHasPipelineResult(false);
     setRequestState("calling");
 
     try {
@@ -310,6 +375,7 @@ export function OpsBotConsole() {
       setRobotAction(data.robot_action);
       setRobotStatus(data.robot_status ?? "skipped");
       setInterhumanSummary(data.interhuman_summary ?? null);
+      setHasPipelineResult(true);
       const userMessage = data.user_message ?? payload.message;
       setConversation((currentConversation) =>
         [
@@ -454,11 +520,6 @@ export function OpsBotConsole() {
             playsInline
             ref={videoRef}
           />
-          {!cameraPreviewStream && (
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-              <Camera aria-hidden="true" className="h-4 w-4" />
-            </div>
-          )}
           <div
             className={cn(
               "absolute left-2 top-2 inline-flex min-h-6 items-center gap-1.5 rounded-full border border-border bg-background/92 px-2 text-[11px] font-medium leading-4 text-foreground shadow-xs backdrop-blur",
@@ -476,15 +537,43 @@ export function OpsBotConsole() {
           </div>
 
           <div className="absolute inset-x-3 bottom-3 text-foreground [text-shadow:0_1px_2px_rgba(255,255,255,0.9)]">
-            <div className="flex items-center gap-1.5 text-[11px] font-medium leading-4 text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold leading-4 text-foreground">
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  pipelineStatusClassNames[activePipelineStatus]
+                )}
+                aria-hidden="true"
+              />
+              {pipelineLabel}
+            </div>
+            <div className="mt-1 grid gap-0.5">
+              {pipelineSteps.map((step) => (
+                <div
+                  className="flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground"
+                  key={step.label}
+                >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 shrink-0 rounded-full",
+                      pipelineStatusClassNames[step.status]
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="shrink-0 font-medium text-foreground">{step.label}</span>
+                  <span className="truncate">{step.helper}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium leading-3 text-muted-foreground">
               <Activity aria-hidden="true" className="h-3.5 w-3.5" />
               Interhuman signal
             </div>
-            <div className="mt-1.5">
+            <div className="mt-1">
               {primarySignal ? (
                 <>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-xs font-semibold leading-4">
+                    <p className="text-[11px] font-semibold leading-4">
                       {humanizeSignalLabel(primarySignal.type)}
                     </p>
                     {primarySignal.probability && (
