@@ -1,6 +1,6 @@
 # OpsBot Frontend
 
-Next.js + TypeScript frontend for the iPhone Safari interface.
+Next.js + TypeScript frontend for the iPhone web app interface.
 
 ## Scope
 

@@ -2,18 +2,18 @@
 
 ## One-liner
 
-OpsBot is a physical AI front desk for coworkings and events: it reads live event info, talks to visitors through an iPhone interface, and triggers simple robot actions like pointing to check-in, lost-and-found, charger help, or demo queue.
+OpsBot is a physical AI front desk for coworkings and events: it reads live event info, talks to visitors through an iPhone web app, and triggers simple robot actions like pointing to check-in, lost-and-found, charger help, or demo queue.
 
 ## Project
 
-OpsBot is a fixed-table AI front desk for coworkings and events. Visitors interact through an iPhone. The system answers questions, reads event info, logs actions, and later triggers simple robot actions like pointing, waving, or pushing a card.
+OpsBot is a fixed-table AI front desk for coworkings and events. Visitors interact from any iPhone through a web app. The system answers questions, reads event info, logs actions, and later triggers simple robot actions like pointing, waving, or pushing a card.
 
 ## Stack
 
 - Frontend: Next.js + TypeScript
 - Backend: Supabase Edge Functions
 - Database/logs: Supabase Postgres
-- UI/audio: iPhone Safari + browser speech synthesis
+- UI/audio: iPhone web app + browser speech synthesis
 - ScrapeGraph: event/schedule extraction
 - Interhuman: realtime empathy/social-signal layer
 - Cyberwave: robot/arm/servo/camera integration
@@ -21,13 +21,13 @@ OpsBot is a fixed-table AI front desk for coworkings and events. Visitors intera
 ## MVP Flow
 
 ```txt
-Visitor taps button on iPhone
+Visitor taps button on the iPhone web app
 ↓
 Next.js calls Supabase Edge Function /intent
 ↓
 Function returns reply + robot_action
 ↓
-iPhone speaks the reply
+The iPhone web app speaks the reply
 ↓
 Action is logged in Supabase
 ↓
@@ -63,7 +63,7 @@ Robot action is mocked first, then connected to Cyberwave
 
 - Fixed table only.
 - Robot does not move between rooms.
-- iPhone is the robot face/speaker/UI.
+- Any iPhone can be the robot face/speaker/UI through the web app.
 - Robot hardware action is mocked first.
 - Do not implement the app yet; create only repo structure and README files.
 
