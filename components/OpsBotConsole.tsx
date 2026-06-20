@@ -31,13 +31,13 @@ const intentIcons: Record<IntentId, ComponentType<{ className?: string }>> = {
 
 const intentButtonGradients: Record<IntentId, string> = {
   check_in:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(255,90,95,0.28),transparent_34%),radial-gradient(circle_at_88%_24%,rgba(0,166,153,0.16),transparent_34%),linear-gradient(to_left,rgba(252,100,45,0.12),transparent_78%)]",
+    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(255,90,95,0.14),transparent_32%),radial-gradient(circle_at_88%_24%,rgba(0,166,153,0.08),transparent_32%),linear-gradient(to_left,rgba(252,100,45,0.06),transparent_76%)]",
   lost_item:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(252,100,45,0.24),transparent_34%),radial-gradient(circle_at_86%_28%,rgba(255,90,95,0.20),transparent_36%),linear-gradient(to_left,rgba(118,118,118,0.10),transparent_78%)]",
+    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(252,100,45,0.12),transparent_32%),radial-gradient(circle_at_86%_28%,rgba(255,90,95,0.10),transparent_34%),linear-gradient(to_left,rgba(118,118,118,0.05),transparent_76%)]",
   charger_request:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(0,166,153,0.22),transparent_34%),radial-gradient(circle_at_88%_24%,rgba(252,100,45,0.18),transparent_34%),linear-gradient(to_left,rgba(255,90,95,0.12),transparent_78%)]",
+    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(0,166,153,0.11),transparent_32%),radial-gradient(circle_at_88%_24%,rgba(252,100,45,0.09),transparent_32%),linear-gradient(to_left,rgba(255,90,95,0.06),transparent_76%)]",
   demo_schedule:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(255,90,95,0.24),transparent_34%),radial-gradient(circle_at_86%_26%,rgba(252,100,45,0.18),transparent_34%),linear-gradient(to_left,rgba(0,166,153,0.10),transparent_78%)]"
+    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(255,90,95,0.12),transparent_32%),radial-gradient(circle_at_86%_26%,rgba(252,100,45,0.09),transparent_32%),linear-gradient(to_left,rgba(0,166,153,0.05),transparent_76%)]"
 };
 
 export function OpsBotConsole() {
@@ -145,7 +145,7 @@ export function OpsBotConsole() {
               return (
                 <Button
                   className={cn(
-                    "relative h-24 justify-start gap-4 overflow-hidden border bg-background px-5 text-left transition-transform before:pointer-events-none before:absolute before:inset-0 before:content-[''] before:[mask-image:linear-gradient(to_left,black_0%,black_42%,transparent_100%)] hover:bg-background active:translate-y-px [&_svg]:size-5",
+                    "relative h-24 justify-start gap-4 overflow-hidden border bg-background px-5 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] before:pointer-events-none before:absolute before:inset-0 before:opacity-80 before:transition-opacity before:content-[''] before:[mask-image:linear-gradient(to_left,black_0%,black_38%,transparent_100%)] hover:-translate-y-0.5 hover:border-[#ff5a5f]/30 hover:bg-background hover:shadow-[0_10px_24px_-20px_rgba(255,90,95,0.45)] hover:before:opacity-100 active:translate-y-px [&_svg]:size-5",
                     intentButtonGradients[option.id],
                     lastIntent === option.id && "border-ring bg-blue-50 hover:bg-blue-50"
                   )}
