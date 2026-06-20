@@ -8,6 +8,8 @@ from robot_bridge.cyberwave_adapter import (
     _get_environment_reference,
     _get_robot,
     _get_robot_mode,
+    _get_workflow_id,
+    _is_workflow_strict,
     _should_free_roam,
     _should_update_scene_pose,
     _should_update_scene_rotation,
@@ -157,6 +159,22 @@ class CyberwaveAdapterTest(unittest.TestCase):
             clear=True,
         ):
             self.assertFalse(_should_free_roam())
+
+    def test_workflow_id_is_read_from_action_env(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE": "workflow-demo"},
+            clear=True,
+        ):
+            self.assertEqual(_get_workflow_id("point_demo_queue"), "workflow-demo")
+
+    def test_workflow_strict_is_disabled_by_default(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(_is_workflow_strict())
+
+    def test_workflow_strict_can_be_enabled(self) -> None:
+        with patch.dict(os.environ, {"CYBERWAVE_WORKFLOW_STRICT": "1"}, clear=True):
+            self.assertTrue(_is_workflow_strict())
 
 
 if __name__ == "__main__":

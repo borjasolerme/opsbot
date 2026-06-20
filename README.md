@@ -264,6 +264,12 @@ export CYBERWAVE_ROBOT_ID="8599efec-fe5b-47ea-8040-78cd9e531d9a"
 export ROBOT_MODE="simulation"
 export CYBERWAVE_AFFECT="simulation"
 export CYBERWAVE_SIMULATION_VISIBILITY_MODE="scene_edit"
+export CYBERWAVE_WORKFLOW_POINT_CHECKIN="887173ea-eb5c-4d70-84d2-9178c6d3205a"
+export CYBERWAVE_WORKFLOW_POINT_LOST_FOUND="d0ec2fe3-213a-4183-a4eb-5e517476163d"
+export CYBERWAVE_WORKFLOW_POINT_CHARGER="e0913288-261f-46c4-9980-bfd3e84b167a"
+export CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE="b171a1f3-672e-4f39-812f-f6b1f29ff795"
+export CYBERWAVE_WORKFLOW_LOOK_AROUND="01fd77e5-612c-4bdb-9428-af9b3aa4d503"
+export CYBERWAVE_WORKFLOW_STRICT="0"
 export ROBOT_FREE_ROAM="1"
 export ROBOT_FREE_ROAM_STEPS="3"
 export ROBOT_FREE_ROAM_RADIUS="0.42"
@@ -280,9 +286,31 @@ Robot mode: simulation
 Action sent: point_demo_queue
 ```
 
-`CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene pose through Cyberwave REST after publishing the MQTT movement command. This makes OpsBot actions visible in the Cyberwave viewport even when no mission workflow execution is created or the Cyberwave panel says there is no active simulation runtime.
+`CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene pose through Cyberwave REST after publishing the MQTT movement command. This gives the hackathon demo a visible SDK-driven movement path even if the Cyberwave simulation panel says there is no active simulation runtime.
 
-The Cyberwave MCP server is useful for verification. In this environment it reports one twin, `UGV Beast`, in `075f2258-8e0f-4ce3-9e91-c00cb387cca8`, and the same twin UUID used by the SDK: `8599efec-fe5b-47ea-8040-78cd9e531d9a`. MCP also confirms the environment has no workflows, areas, or waypoints yet. The bridge still uses the Python SDK for production dispatch because that keeps Cyberwave logic isolated in one Python service.
+Cyberwave MCP was used to create named waypoints and workflows in the hackathon environment. The bridge triggers the workflow for the selected action first, then continues with the Python SDK pose and movement commands. `CYBERWAVE_WORKFLOW_STRICT=0` keeps workflow dispatch non-fatal for the demo: if the workflow runner returns an error, the bridge logs it and still sends the SDK command path.
+
+MCP-created waypoints:
+
+| Waypoint ID | Demo target |
+| --- | --- |
+| `opsbot_checkin` | Check-in area |
+| `opsbot_lost_found` | Lost and found area |
+| `opsbot_charger` | Charger area |
+| `opsbot_demo_queue` | Demo queue area |
+| `opsbot_center` | Look-around center point |
+
+MCP-created workflows:
+
+| OpsBot action | Env var | Workflow UUID |
+| --- | --- | --- |
+| `point_checkin` | `CYBERWAVE_WORKFLOW_POINT_CHECKIN` | `887173ea-eb5c-4d70-84d2-9178c6d3205a` |
+| `point_lost_found` | `CYBERWAVE_WORKFLOW_POINT_LOST_FOUND` | `d0ec2fe3-213a-4183-a4eb-5e517476163d` |
+| `point_charger` | `CYBERWAVE_WORKFLOW_POINT_CHARGER` | `e0913288-261f-46c4-9980-bfd3e84b167a` |
+| `point_demo_queue` | `CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE` | `b171a1f3-672e-4f39-812f-f6b1f29ff795` |
+| `look_around` | `CYBERWAVE_WORKFLOW_LOOK_AROUND` | `01fd77e5-612c-4bdb-9428-af9b3aa4d503` |
+
+The Cyberwave MCP server is also useful for verification. In this environment it reports one twin, `UGV Beast`, in `075f2258-8e0f-4ce3-9e91-c00cb387cca8`, and the same twin UUID used by the SDK: `8599efec-fe5b-47ea-8040-78cd9e531d9a`. The bridge still keeps Cyberwave logic isolated in one Python service.
 
 The Cyberwave control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. Direct joint targets are listed as not currently available for this twin, so the bridge uses small chassis movements plus camera pan/tilt instead of raw wheel or pan/tilt joint commands.
 

@@ -31,6 +31,20 @@ SCENE_POSITIONS_BY_ACTION = {
     "look_around": {"x": 0.0, "y": 0.0, "z": 0.0},
     "idle": {"x": 0.0, "y": 0.0, "z": 0.0},
 }
+WAYPOINT_IDS_BY_ACTION = {
+    "point_checkin": "opsbot_checkin",
+    "point_lost_found": "opsbot_lost_found",
+    "point_charger": "opsbot_charger",
+    "point_demo_queue": "opsbot_demo_queue",
+    "look_around": "opsbot_center",
+}
+WORKFLOW_ENV_KEYS_BY_ACTION = {
+    "point_checkin": "CYBERWAVE_WORKFLOW_POINT_CHECKIN",
+    "point_lost_found": "CYBERWAVE_WORKFLOW_POINT_LOST_FOUND",
+    "point_charger": "CYBERWAVE_WORKFLOW_POINT_CHARGER",
+    "point_demo_queue": "CYBERWAVE_WORKFLOW_POINT_DEMO_QUEUE",
+    "look_around": "CYBERWAVE_WORKFLOW_LOOK_AROUND",
+}
 _LAST_SCENE_YAW: float | None = None
 _SCENE_NUDGE_DIRECTION = 1
 
@@ -52,6 +66,13 @@ def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
         f"twin_uuid={getattr(robot, 'uuid', None)} "
         f"twin_slug={getattr(robot, 'slug', None)}"
     )
+
+    try:
+        _trigger_workflow_if_configured(client, action)
+    except Exception as exc:
+        _log_bridge(f"Cyberwave workflow trigger failed: action={action} error={exc}")
+        if _is_workflow_strict():
+            raise
 
     sent_initial_command = False
     update_scene_pose = _should_update_scene_pose(mode, action)
@@ -83,6 +104,43 @@ def send_robot_action(action: str, *, wait_for_motion: bool = True) -> None:
         _run_commands_background(robot, action, background_commands)
 
     _log_bridge(f"Action sent: {action}")
+
+
+def _trigger_workflow_if_configured(client: Any, action: str) -> None:
+    workflow_id = _get_workflow_id(action)
+    if not workflow_id:
+        return
+
+    inputs = {
+        "twin_uuid": os.getenv("CYBERWAVE_ROBOT_ID", "").strip(),
+        "waypoint_id": WAYPOINT_IDS_BY_ACTION.get(action),
+    }
+    filtered_inputs = {key: value for key, value in inputs.items() if value}
+
+    _log_bridge(
+        "Cyberwave workflow trigger: "
+        f"action={action} workflow={workflow_id} inputs={filtered_inputs}"
+    )
+    run = client.workflows.trigger(workflow_id, inputs=filtered_inputs)
+    _log_bridge(
+        "Cyberwave workflow run: "
+        f"action={action} workflow={workflow_id} "
+        f"run_uuid={getattr(run, 'uuid', None)} status={getattr(run, 'status', None)}"
+    )
+
+
+def _get_workflow_id(action: str) -> str | None:
+    env_key = WORKFLOW_ENV_KEYS_BY_ACTION.get(action)
+    if not env_key:
+        return None
+
+    workflow_id = os.getenv(env_key, "").strip()
+    return workflow_id or None
+
+
+def _is_workflow_strict() -> bool:
+    value = os.getenv("CYBERWAVE_WORKFLOW_STRICT", "0").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def _get_robot(client: Any) -> Any:
