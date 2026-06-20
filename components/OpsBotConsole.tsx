@@ -5,8 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Mic,
-  PackageSearch,
-  Square
+  PackageSearch
 } from "lucide-react";
 import {
   type ComponentType,
@@ -132,6 +131,7 @@ const intentFunctionUrl =
   process.env.NEXT_PUBLIC_INTENT_FUNCTION_URL ??
   "http://127.0.0.1:54331/functions/v1/intent";
 const interhumanMinimumClipMs = 3200;
+const talkClipMs = 4500;
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer();
@@ -187,14 +187,6 @@ export function OpsBotConsole() {
 
   async function toggleRecording() {
     if (isRecording) {
-      const remainingMs = interhumanMinimumClipMs - (Date.now() - recordingStartedAtRef.current);
-
-      if (remainingMs > 0) {
-        window.setTimeout(() => mediaRecorderRef.current?.stop(), remainingMs);
-      } else {
-        mediaRecorderRef.current?.stop();
-      }
-
       return;
     }
 
@@ -249,6 +241,7 @@ export function OpsBotConsole() {
       recorder.start();
       setIsRecording(true);
       setRequestState("listening");
+      window.setTimeout(() => mediaRecorderRef.current?.stop(), talkClipMs);
     } catch {
       setRequestState("speech_unavailable");
     }
@@ -457,13 +450,13 @@ export function OpsBotConsole() {
 
           <Button
             className="mt-4 h-14 w-full gap-3 rounded-[18px] text-base"
-            disabled={requestState === "calling" || (requestState === "listening" && !isRecording)}
+            disabled={requestState === "calling" || requestState === "listening"}
             onClick={toggleRecording}
             type="button"
             variant={isRecording ? "default" : "secondary"}
           >
-            {isRecording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
-            {isRecording ? "Stop" : "Talk"}
+            <Mic aria-hidden="true" />
+            {isRecording ? "Listening" : "Talk"}
           </Button>
 
         </div>
