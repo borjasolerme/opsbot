@@ -4,8 +4,10 @@ from unittest.mock import patch
 
 from robot_bridge.cyberwave_adapter import (
     DEFAULT_REGISTRY_ID,
+    SCENE_POSITIONS_BY_ACTION,
     _get_environment_reference,
     _get_robot_mode,
+    _should_update_scene_pose,
     _should_update_scene_rotation,
 )
 
@@ -48,6 +50,29 @@ class CyberwaveAdapterTest(unittest.TestCase):
                 _should_update_scene_rotation("simulation", "point_lost_found")
             )
             self.assertFalse(_should_update_scene_rotation("live", "point_lost_found"))
+
+    def test_scene_pose_is_enabled_for_simulation_visibility(self) -> None:
+        with patch.dict(os.environ, {"CYBERWAVE_SIMULATION_VISIBILITY_MODE": "scene_edit"}):
+            self.assertTrue(_should_update_scene_pose("simulation", "point_demo_queue"))
+            self.assertFalse(_should_update_scene_pose("live", "point_demo_queue"))
+
+    def test_demo_scene_positions_cover_each_front_desk_area(self) -> None:
+        self.assertEqual(
+            SCENE_POSITIONS_BY_ACTION["point_checkin"],
+            {"x": -0.35, "y": 0.3, "z": 0.0},
+        )
+        self.assertEqual(
+            SCENE_POSITIONS_BY_ACTION["point_lost_found"],
+            {"x": 0.35, "y": 0.3, "z": 0.0},
+        )
+        self.assertEqual(
+            SCENE_POSITIONS_BY_ACTION["point_charger"],
+            {"x": -0.35, "y": -0.3, "z": 0.0},
+        )
+        self.assertEqual(
+            SCENE_POSITIONS_BY_ACTION["point_demo_queue"],
+            {"x": 0.35, "y": -0.3, "z": 0.0},
+        )
 
     def test_robot_mode_prefers_robot_mode_env(self) -> None:
         with patch.dict(

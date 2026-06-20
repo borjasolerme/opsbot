@@ -183,7 +183,7 @@ Robot mode: simulation
 Action sent: point_demo_queue
 ```
 
-`CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene rotation through Cyberwave REST after publishing the MQTT movement command. This makes OpsBot actions visible in the Cyberwave viewport even when no mission workflow execution is created.
+`CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene pose through Cyberwave REST after publishing the MQTT movement command. This makes OpsBot actions visible in the Cyberwave viewport even when no mission workflow execution is created or the Cyberwave panel says there is no active simulation runtime.
 
 The Cyberwave MCP control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. Direct joint targets are listed as not currently available for this twin, so the bridge uses small chassis movements plus camera pan/tilt instead of raw wheel or pan/tilt joint commands.
 
@@ -191,10 +191,10 @@ Current UGV Beast action mapping:
 
 | OpsBot action | Cyberwave commands |
 | --- | --- |
-| `point_checkin` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_up`, smooth scene yaw `-18` |
-| `point_lost_found` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_up`, smooth scene yaw `18` |
-| `point_charger` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_down`, smooth scene yaw `-30` |
-| `point_demo_queue` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_down`, smooth scene yaw `30` |
+| `point_checkin` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_up`, scene pose `x=-0.35 y=0.3 yaw=-18` |
+| `point_lost_found` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_up`, scene pose `x=0.35 y=0.3 yaw=18` |
+| `point_charger` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_down`, scene pose `x=-0.35 y=-0.3 yaw=-30` |
+| `point_demo_queue` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_down`, scene pose `x=0.35 y=-0.3 yaw=30` |
 | `wave` | stop, center camera, small left/right/center chassis gesture |
 | `idle` | `stop` |
 

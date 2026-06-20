@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import math
+import os
 import time
 from typing import Any
 
@@ -16,7 +16,15 @@ SCENE_YAWS_BY_ACTION = {
     "point_demo_queue": 30.0,
     "idle": 0.0,
 }
+SCENE_POSITIONS_BY_ACTION = {
+    "point_checkin": {"x": -0.35, "y": 0.3, "z": 0.0},
+    "point_lost_found": {"x": 0.35, "y": 0.3, "z": 0.0},
+    "point_charger": {"x": -0.35, "y": -0.3, "z": 0.0},
+    "point_demo_queue": {"x": 0.35, "y": -0.3, "z": 0.0},
+    "idle": {"x": 0.0, "y": 0.0, "z": 0.0},
+}
 _LAST_SCENE_YAW: float | None = None
+_SCENE_NUDGE_DIRECTION = 1
 
 
 def send_robot_action(action: str) -> None:
@@ -37,14 +45,12 @@ def send_robot_action(action: str) -> None:
         f"twin_slug={getattr(robot, 'slug', None)}"
     )
 
+    if _should_update_scene_pose(mode, action):
+        _apply_scene_demo_pose(robot, action)
+
     for command in map_robot_action(action):
         _log_bridge(f"Cyberwave command: action={action} command={command.name} args={command.args}")
         _execute_command(robot, command)
-
-    if _should_update_scene_rotation(mode, action):
-        yaw = SCENE_YAWS_BY_ACTION[action]
-        _log_bridge(f"Cyberwave scene edit: action={action} smooth_edit_rotation yaw={yaw}")
-        _smooth_scene_rotation(robot, yaw)
 
     _log_bridge(f"Action sent: {action}")
 
@@ -129,6 +135,46 @@ def _execute_command(robot: Any, command: RobotCommand) -> None:
 def _should_update_scene_rotation(mode: str, action: str) -> bool:
     visibility_mode = os.getenv("CYBERWAVE_SIMULATION_VISIBILITY_MODE", "scene_edit")
     return mode == "simulation" and visibility_mode == "scene_edit" and action in SCENE_YAWS_BY_ACTION
+
+
+def _should_update_scene_pose(mode: str, action: str) -> bool:
+    visibility_mode = os.getenv("CYBERWAVE_SIMULATION_VISIBILITY_MODE", "scene_edit")
+    return (
+        mode == "simulation"
+        and visibility_mode == "scene_edit"
+        and action in SCENE_YAWS_BY_ACTION
+        and action in SCENE_POSITIONS_BY_ACTION
+    )
+
+
+def _apply_scene_demo_pose(robot: Any, action: str) -> None:
+    target_position = SCENE_POSITIONS_BY_ACTION[action]
+    target_yaw = SCENE_YAWS_BY_ACTION[action]
+
+    _log_bridge(
+        "Cyberwave scene edit: "
+        f"action={action} "
+        f"edit_position x={target_position['x']} y={target_position['y']} z={target_position['z']} "
+        f"smooth_edit_rotation yaw={target_yaw}"
+    )
+    _nudge_scene_position(robot, target_position)
+    _smooth_scene_rotation(robot, target_yaw)
+
+
+def _nudge_scene_position(robot: Any, target_position: dict[str, float]) -> None:
+    global _SCENE_NUDGE_DIRECTION
+
+    nudge = float(os.getenv("CYBERWAVE_SCENE_POSITION_NUDGE", "0.25"))
+    delay = float(os.getenv("CYBERWAVE_SCENE_POSITION_NUDGE_DELAY", "0.18"))
+    nudged_position = {
+        **target_position,
+        "x": target_position["x"] + nudge * _SCENE_NUDGE_DIRECTION,
+    }
+
+    robot.edit_position(**nudged_position)
+    time.sleep(delay)
+    robot.edit_position(**target_position)
+    _SCENE_NUDGE_DIRECTION *= -1
 
 
 def _smooth_scene_rotation(robot: Any, target_yaw: float) -> None:
