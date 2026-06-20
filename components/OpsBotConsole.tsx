@@ -259,9 +259,9 @@ export function OpsBotConsole() {
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-4 border-t border-border pt-8 md:border-l md:border-t-0 md:pl-10 md:pt-0">
+        <div className="flex min-w-0 flex-col md:pt-[70px]">
           <div
-            className="robot-stage min-h-80 overflow-hidden rounded-[28px] border border-border bg-secondary max-[420px]:min-h-[280px]"
+            className="robot-stage h-full min-h-80 overflow-hidden rounded-[28px] border border-border bg-secondary max-[420px]:min-h-[280px]"
             data-action={robotAction}
             data-speaking={requestState === "speaking"}
             aria-label={robotActionLabels[robotAction]}
