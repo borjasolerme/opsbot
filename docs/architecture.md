@@ -6,8 +6,9 @@ OpsBot is a fixed-table AI front desk for coworkings and events. Visitors intera
 
 ```txt
 Phone web app
-  -> Next.js frontend
-  -> Supabase Edge Function /intent
+  -> Next.js app
+  -> Local Next.js /intent route for the mock slice
+  -> Supabase Edge Function /intent when deployed later
   -> Supabase Postgres logs
   -> Mock robot action
   -> Cyberwave robot integration later
@@ -19,6 +20,7 @@ Phone web app
 - Interhuman adds realtime empathy and social-signal analysis.
 - Cyberwave connects mocked robot actions to one selected robot: UGV Beast Rover or Unitree Go2.
 - Supabase hosts Edge Functions and Postgres logs.
+- The current hackathon slice keeps the Next.js app at the repo root and uses a local `/intent` route so it runs with `npm run dev`.
 
 ## Constraints
 

@@ -10,7 +10,7 @@ OpsBot is a fixed-table AI front desk for coworkings and events. Visitors intera
 
 ## Stack
 
-- Frontend: Next.js + TypeScript
+- App: Next.js + TypeScript + Tailwind CSS + shadcn/ui
 - Backend: Supabase Edge Functions
 - Database/logs: Supabase Postgres
 - UI/audio: phone web app + browser speech synthesis
@@ -23,13 +23,13 @@ OpsBot is a fixed-table AI front desk for coworkings and events. Visitors intera
 ```txt
 Visitor taps button on the phone web app
 ↓
-Next.js calls Supabase Edge Function /intent
+Next.js calls /intent
 ↓
 Function returns reply + robot_action
 ↓
 The phone web app speaks the reply
 ↓
-Action is logged in Supabase
+UI shows a mocked robot action
 ↓
 Robot action is mocked first, then connected to Cyberwave
 ```
@@ -59,13 +59,65 @@ Robot action is mocked first, then connected to Cyberwave
 - wave
 - idle
 
+## Current Vertical Slice
+
+The mocked loop is now implemented locally:
+
+```txt
+iPhone web app button
+↓
+Next.js /intent route
+↓
+reply + robot_action
+↓
+browser speech synthesis
+↓
+mocked robot action UI
+```
+
+The Supabase Edge Function contract is mirrored in `supabase/functions/intent/index.ts`, but the local demo does not require Supabase credentials.
+
+## Run Locally
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the Next.js app:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```txt
+http://localhost:3000
+```
+
+Useful checks:
+
+```bash
+npm test
+npm run build
+npm audit --omit=dev
+```
+
+## UI Stack
+
+- Tailwind CSS v4 for utility-first styling.
+- shadcn/ui for local Button and Card primitives.
+- Nice Design tokens are mapped into Tailwind CSS variables in `app/globals.css`.
+
 ## Important Constraints
 
 - Fixed table only.
 - Robot does not move between rooms.
 - Any phone can be the robot face/speaker/UI through the web app.
 - Robot hardware action is mocked first.
-- Do not implement the app yet; create only repo structure and README files.
+- Cyberwave, ScrapeGraph, and Interhuman come after the basic loop works.
 
 ## Starter Docs
 
@@ -99,12 +151,21 @@ opsbot/
   README.md
   .gitignore
   .env.example
+  package.json
+  next.config.mjs
+  postcss.config.mjs
+  tsconfig.json
 
-  frontend/
-    README.md
-    app/
-    components/
-    lib/
+  app/
+    page.tsx
+    intent/
+      route.ts
+  components/
+    OpsBotConsole.tsx
+    ui/
+  lib/
+    intent.ts
+    utils.ts
 
   supabase/
     README.md
