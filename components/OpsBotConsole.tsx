@@ -438,6 +438,91 @@ export function OpsBotConsole() {
         </div>
       </section>
 
+      <aside
+        className="fixed right-3 top-3 z-40 w-[min(240px,calc(100vw-1.5rem))] overflow-hidden rounded-[18px] border border-border bg-background shadow-[0_16px_42px_-28px_rgba(0,0,0,0.55)] sm:right-5 sm:top-5 sm:w-[240px]"
+        aria-label="Camera preview and Interhuman signal"
+      >
+        <div className="relative aspect-[4/3] bg-muted">
+          <video
+            aria-label="Camera preview"
+            autoPlay
+            className={cn(
+              "h-full w-full object-cover transition-opacity",
+              !cameraPreviewStream && "opacity-0"
+            )}
+            muted
+            playsInline
+            ref={videoRef}
+          />
+          {!cameraPreviewStream && (
+            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+              <Camera aria-hidden="true" className="h-4 w-4" />
+            </div>
+          )}
+          <div
+            className={cn(
+              "absolute left-2 top-2 inline-flex min-h-6 items-center gap-1.5 rounded-full border border-border bg-background/92 px-2 text-[11px] font-medium leading-4 text-foreground shadow-xs backdrop-blur",
+              !cameraPreviewStream && "text-muted-foreground"
+            )}
+          >
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full bg-muted-foreground/45",
+                cameraPreviewStream && "bg-success"
+              )}
+              aria-hidden="true"
+            />
+            {cameraPreviewStream ? "Camera on" : "Camera idle"}
+          </div>
+
+          <div className="absolute inset-x-3 bottom-3 text-foreground [text-shadow:0_1px_2px_rgba(255,255,255,0.9)]">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium leading-4 text-muted-foreground">
+              <Activity aria-hidden="true" className="h-3.5 w-3.5" />
+              Interhuman signal
+            </div>
+            <div className="mt-1.5">
+              {primarySignal ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-semibold leading-4">
+                      {humanizeSignalLabel(primarySignal.type)}
+                    </p>
+                    {primarySignal.probability && (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium leading-4 text-muted-foreground">
+                        {humanizeSignalLabel(primarySignal.probability)}
+                      </span>
+                    )}
+                  </div>
+                  {primarySignal.rationale && (
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                      {primarySignal.rationale}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  Waiting for the next analyzed interaction.
+                </p>
+              )}
+            </div>
+            {(interhumanSummary?.engagement_state || interhumanSummary?.quality_index) && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] leading-4 text-muted-foreground">
+                {interhumanSummary.engagement_state && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5">
+                    {humanizeSignalLabel(interhumanSummary.engagement_state)}
+                  </span>
+                )}
+                {typeof interhumanSummary.quality_index === "number" && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5">
+                    CQI {interhumanSummary.quality_index}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+
       <section className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(360px,0.78fr)_minmax(0,1.22fr)] md:gap-10" aria-label="OpsBot controls and robot state">
         <div className="min-w-0">
           <div>
@@ -496,88 +581,6 @@ export function OpsBotConsole() {
             <Mic aria-hidden="true" />
             {isRecording ? "Stop" : "Talk"}
           </Button>
-
-          <div className="mt-4 overflow-hidden rounded-[22px] border border-border bg-background">
-            <div className="relative aspect-video bg-muted">
-              <video
-                aria-label="Camera preview"
-                autoPlay
-                className={cn(
-                  "h-full w-full object-cover transition-opacity",
-                  !cameraPreviewStream && "opacity-0"
-                )}
-                muted
-                playsInline
-                ref={videoRef}
-              />
-              {!cameraPreviewStream && (
-                <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                  <Camera aria-hidden="true" className="h-6 w-6" />
-                </div>
-              )}
-              <div
-                className={cn(
-                  "absolute left-3 top-3 inline-flex min-h-7 items-center gap-2 rounded-full border border-border bg-background/90 px-2.5 text-xs font-medium text-foreground shadow-xs",
-                  !cameraPreviewStream && "text-muted-foreground"
-                )}
-              >
-                <span
-                  className={cn(
-                    "h-2 w-2 rounded-full bg-muted-foreground/45",
-                    cameraPreviewStream && "bg-success"
-                  )}
-                  aria-hidden="true"
-                />
-                {cameraPreviewStream ? "Camera on" : "Camera idle"}
-              </div>
-            </div>
-
-            <div className="border-t border-border p-4">
-              <div className="flex items-center gap-2 text-xs font-medium leading-4 text-muted-foreground">
-                <Activity aria-hidden="true" className="h-4 w-4" />
-                Interhuman signal
-              </div>
-              <div className="mt-2 min-h-[52px]">
-                {primarySignal ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-semibold leading-6">
-                        {humanizeSignalLabel(primarySignal.type)}
-                      </p>
-                      {primarySignal.probability && (
-                        <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                          {humanizeSignalLabel(primarySignal.probability)}
-                        </span>
-                      )}
-                    </div>
-                    {primarySignal.rationale && (
-                      <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
-                        {primarySignal.rationale}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm leading-5 text-muted-foreground">
-                    Waiting for the next analyzed interaction.
-                  </p>
-                )}
-              </div>
-              {(interhumanSummary?.engagement_state || interhumanSummary?.quality_index) && (
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  {interhumanSummary.engagement_state && (
-                    <span className="rounded-full bg-secondary px-2 py-1">
-                      {humanizeSignalLabel(interhumanSummary.engagement_state)}
-                    </span>
-                  )}
-                  {typeof interhumanSummary.quality_index === "number" && (
-                    <span className="rounded-full bg-secondary px-2 py-1">
-                      CQI {interhumanSummary.quality_index}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
         <div className="flex min-w-0 flex-col md:pt-[70px]">
