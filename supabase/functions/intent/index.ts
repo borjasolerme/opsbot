@@ -21,6 +21,7 @@ type IntentReply = {
   audio_base64: string;
   audio_mime_type: string;
   user_message?: string;
+  interhuman_summary?: InterhumanSummary;
 };
 
 type IntentResponse = IntentReply & {
@@ -49,6 +50,21 @@ type InterhumanContext = {
   status: InterhumanStatus;
   data: Record<string, unknown>;
   error?: string;
+};
+
+type InterhumanSignalSummary = {
+  type: string;
+  probability?: string;
+  rationale?: string;
+  start?: number;
+  end?: number;
+};
+
+type InterhumanSummary = {
+  status: InterhumanStatus;
+  primary_signal?: InterhumanSignalSummary;
+  engagement_state?: string;
+  quality_index?: number;
 };
 
 type SourceConfig = {
@@ -239,7 +255,8 @@ async function resolveIntent(payload: IntentPayload): Promise<IntentReply> {
     robot_action: decision.robot_action,
     audio_base64: audio.audio_base64,
     audio_mime_type: audio.audio_mime_type,
-    user_message: message
+    user_message: message,
+    interhuman_summary: summarizeInterhumanContext(interhumanContext)
   };
 }
 
@@ -432,6 +449,94 @@ async function getInterhumanContext(
     console.error("Interhuman request failed", error);
     throw error;
   }
+}
+
+function summarizeInterhumanContext(context: InterhumanContext): InterhumanSummary {
+  const signals = getInterhumanSignals(context.data.signals);
+  const primarySignal = [...signals].sort((left, right) => {
+    const probabilityDelta =
+      probabilityRank(right.probability) - probabilityRank(left.probability);
+
+    if (probabilityDelta !== 0) {
+      return probabilityDelta;
+    }
+
+    return signalDuration(right) - signalDuration(left);
+  })[0];
+  const engagementState = getLatestEngagementState(context.data.engagement_state);
+  const qualityIndex = asRecord(asRecord(context.data.conversation_quality).overall)
+    .quality_index;
+
+  return {
+    status: context.status,
+    ...(primarySignal ? { primary_signal: primarySignal } : {}),
+    ...(engagementState ? { engagement_state: engagementState } : {}),
+    ...(typeof qualityIndex === "number" ? { quality_index: qualityIndex } : {})
+  };
+}
+
+function getInterhumanSignals(value: unknown): InterhumanSignalSummary[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item): InterhumanSignalSummary[] => {
+    const signal = asRecord(item);
+
+    if (typeof signal.type !== "string" || signal.type.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        type: signal.type,
+        ...(typeof signal.probability === "string"
+          ? { probability: signal.probability }
+          : {}),
+        ...(typeof signal.rationale === "string" ? { rationale: signal.rationale } : {}),
+        ...(typeof signal.start === "number" ? { start: signal.start } : {}),
+        ...(typeof signal.end === "number" ? { end: signal.end } : {})
+      }
+    ];
+  });
+}
+
+function getLatestEngagementState(value: unknown): string | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const states = value.flatMap((item): Array<{ state: string; end: number }> => {
+    const entry = asRecord(item);
+
+    if (typeof entry.state !== "string" || entry.state.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        state: entry.state,
+        end: typeof entry.end === "number" ? entry.end : 0
+      }
+    ];
+  });
+
+  return [...states].sort((left, right) => right.end - left.end)[0]?.state;
+}
+
+function probabilityRank(value: string | undefined): number {
+  if (value === "high") return 3;
+  if (value === "medium") return 2;
+  if (value === "low") return 1;
+  return 0;
+}
+
+function signalDuration(signal: InterhumanSignalSummary): number {
+  if (typeof signal.start !== "number" || typeof signal.end !== "number") {
+    return 0;
+  }
+
+  return signal.end - signal.start;
 }
 
 async function transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {

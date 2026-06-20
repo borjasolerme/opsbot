@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  Activity,
   BatteryCharging,
+  Camera,
   CheckCircle2,
   Clock3,
   Mic,
@@ -10,6 +12,7 @@ import {
 import {
   type ComponentType,
   type CSSProperties,
+  useEffect,
   useMemo,
   useRef,
   useState
@@ -18,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   intentOptions,
+  type InterhumanSummary,
   type IntentId,
   type IntentResponse,
   type RobotAction,
@@ -132,6 +136,12 @@ const intentFunctionUrl =
   "http://127.0.0.1:54331/functions/v1/intent";
 const interhumanMinimumClipMs = 3200;
 
+function humanizeSignalLabel(value: string): string {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 async function blobToBase64(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);
@@ -152,7 +162,10 @@ export function OpsBotConsole() {
   const [lastIntent, setLastIntent] = useState<IntentId | null>(null);
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [cameraPreviewStream, setCameraPreviewStream] = useState<MediaStream | null>(null);
+  const [interhumanSummary, setInterhumanSummary] = useState<InterhumanSummary | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
 
@@ -165,6 +178,25 @@ export function OpsBotConsole() {
     return "Ready";
   }, [requestState]);
   const isBusy = requestState === "calling" || requestState === "listening";
+  const primarySignal = interhumanSummary?.primary_signal;
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    video.srcObject = cameraPreviewStream;
+
+    if (cameraPreviewStream) {
+      void video.play().catch(() => undefined);
+    }
+
+    return () => {
+      video.srcObject = null;
+    };
+  }, [cameraPreviewStream]);
 
   async function handleIntent(option: (typeof intentOptions)[number]) {
     setLastIntent(option.id);
@@ -196,6 +228,7 @@ export function OpsBotConsole() {
 
     try {
       const stream = await getInteractionStream();
+      setCameraPreviewStream(stream);
       const recorder = new MediaRecorder(stream);
       recordingChunksRef.current = [];
       mediaRecorderRef.current = recorder;
@@ -209,7 +242,7 @@ export function OpsBotConsole() {
       recorder.onstop = async () => {
         setIsRecording(false);
         setRequestState("calling");
-        stream.getTracks().forEach((track) => track.stop());
+        stopInteractionStream(stream);
         const mediaBlob = new Blob(recordingChunksRef.current, {
           type: recorder.mimeType || "video/webm"
         });
@@ -232,7 +265,7 @@ export function OpsBotConsole() {
 
       recorder.onerror = () => {
         setIsRecording(false);
-        stream.getTracks().forEach((track) => track.stop());
+        stopInteractionStream(stream);
         setRequestState("speech_unavailable");
       };
 
@@ -254,6 +287,7 @@ export function OpsBotConsole() {
   }) {
     const requestConversation = conversation;
     setRobotStatus("skipped");
+    setInterhumanSummary(null);
     setRequestState("calling");
 
     try {
@@ -275,6 +309,7 @@ export function OpsBotConsole() {
       const data = (await response.json()) as IntentResponse;
       setRobotAction(data.robot_action);
       setRobotStatus(data.robot_status ?? "skipped");
+      setInterhumanSummary(data.interhuman_summary ?? null);
       const userMessage = data.user_message ?? payload.message;
       setConversation((currentConversation) =>
         [
@@ -294,6 +329,7 @@ export function OpsBotConsole() {
 
   async function captureInteractionMedia(durationMs: number): Promise<InteractionMedia> {
     const stream = await getInteractionStream();
+    setCameraPreviewStream(stream);
     const recorder = new MediaRecorder(stream);
     const chunks: BlobPart[] = [];
 
@@ -305,12 +341,12 @@ export function OpsBotConsole() {
       };
 
       recorder.onerror = () => {
-        stream.getTracks().forEach((track) => track.stop());
+        stopInteractionStream(stream);
         reject(new Error("Interaction recording failed."));
       };
 
       recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
+        stopInteractionStream(stream);
         const mediaBlob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
 
         if (mediaBlob.size === 0) {
@@ -327,6 +363,11 @@ export function OpsBotConsole() {
       recorder.start();
       window.setTimeout(() => recorder.stop(), durationMs);
     });
+  }
+
+  function stopInteractionStream(stream: MediaStream) {
+    stream.getTracks().forEach((track) => track.stop());
+    setCameraPreviewStream((currentStream) => (currentStream === stream ? null : currentStream));
   }
 
   async function getInteractionStream(): Promise<MediaStream> {
@@ -456,6 +497,87 @@ export function OpsBotConsole() {
             {isRecording ? "Stop" : "Talk"}
           </Button>
 
+          <div className="mt-4 overflow-hidden rounded-[22px] border border-border bg-background">
+            <div className="relative aspect-video bg-muted">
+              <video
+                aria-label="Camera preview"
+                autoPlay
+                className={cn(
+                  "h-full w-full object-cover transition-opacity",
+                  !cameraPreviewStream && "opacity-0"
+                )}
+                muted
+                playsInline
+                ref={videoRef}
+              />
+              {!cameraPreviewStream && (
+                <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                  <Camera aria-hidden="true" className="h-6 w-6" />
+                </div>
+              )}
+              <div
+                className={cn(
+                  "absolute left-3 top-3 inline-flex min-h-7 items-center gap-2 rounded-full border border-border bg-background/90 px-2.5 text-xs font-medium text-foreground shadow-xs",
+                  !cameraPreviewStream && "text-muted-foreground"
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full bg-muted-foreground/45",
+                    cameraPreviewStream && "bg-success"
+                  )}
+                  aria-hidden="true"
+                />
+                {cameraPreviewStream ? "Camera on" : "Camera idle"}
+              </div>
+            </div>
+
+            <div className="border-t border-border p-4">
+              <div className="flex items-center gap-2 text-xs font-medium leading-4 text-muted-foreground">
+                <Activity aria-hidden="true" className="h-4 w-4" />
+                Interhuman signal
+              </div>
+              <div className="mt-2 min-h-[52px]">
+                {primarySignal ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-semibold leading-6">
+                        {humanizeSignalLabel(primarySignal.type)}
+                      </p>
+                      {primarySignal.probability && (
+                        <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          {humanizeSignalLabel(primarySignal.probability)}
+                        </span>
+                      )}
+                    </div>
+                    {primarySignal.rationale && (
+                      <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                        {primarySignal.rationale}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm leading-5 text-muted-foreground">
+                    Waiting for the next analyzed interaction.
+                  </p>
+                )}
+              </div>
+              {(interhumanSummary?.engagement_state || interhumanSummary?.quality_index) && (
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  {interhumanSummary.engagement_state && (
+                    <span className="rounded-full bg-secondary px-2 py-1">
+                      {humanizeSignalLabel(interhumanSummary.engagement_state)}
+                    </span>
+                  )}
+                  {typeof interhumanSummary.quality_index === "number" && (
+                    <span className="rounded-full bg-secondary px-2 py-1">
+                      CQI {interhumanSummary.quality_index}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex min-w-0 flex-col md:pt-[70px]">

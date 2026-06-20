@@ -16,6 +16,20 @@ export type RobotAction =
   | "wave"
   | "idle";
 export type RobotStatus = "sent" | "failed" | "skipped";
+export type InterhumanSignalSummary = {
+  type: string;
+  probability?: string;
+  rationale?: string;
+  start?: number;
+  end?: number;
+};
+
+export type InterhumanSummary = {
+  status: "analyzed" | "failed" | "skipped";
+  primary_signal?: InterhumanSignalSummary;
+  engagement_state?: string;
+  quality_index?: number;
+};
 
 export type IntentResponse = {
   reply: string;
@@ -24,6 +38,7 @@ export type IntentResponse = {
   audio_base64?: string;
   audio_mime_type?: string;
   user_message?: string;
+  interhuman_summary?: InterhumanSummary;
 };
 
 export const intentOptions: Array<{
