@@ -18,8 +18,6 @@ OpsBot is a fixed-table AI front desk for coworkings and events. Visitors intera
 - Interhuman: realtime empathy/social-signal layer
 - Cyberwave: robot/arm/servo/camera integration
 
-This repo intentionally does not include a Python/FastAPI backend.
-
 ## MVP Flow
 
 ```txt
