@@ -9,7 +9,12 @@ import {
 import { type ComponentType, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { intentOptions, type IntentId, type IntentResponse } from "@/lib/intent";
+import {
+  intentOptions,
+  type IntentId,
+  type IntentResponse,
+  type RobotAction
+} from "@/lib/intent";
 
 type RequestState = "ready" | "calling" | "speaking" | "speech_unavailable" | "error";
 
@@ -35,6 +40,33 @@ const intentIconSurfaces: Record<IntentId, string> = {
   charger_request: "bg-[#edf8f7] text-[#00a699]",
   demo_schedule: "bg-[#fff1f1] text-[#ff5a5f]"
 };
+
+const robotDestinations: Array<{
+  action: Exclude<RobotAction, "idle" | "wave">;
+  label: string;
+  helper: string;
+}> = [
+  {
+    action: "point_checkin",
+    label: "Check-in",
+    helper: "Arrival desk"
+  },
+  {
+    action: "point_lost_found",
+    label: "Lost & found",
+    helper: "Staff handoff"
+  },
+  {
+    action: "point_charger",
+    label: "Chargers",
+    helper: "Accessories table"
+  },
+  {
+    action: "point_demo_queue",
+    label: "Demo queue",
+    helper: "Stage timing"
+  }
+];
 
 const intentFunctionUrl =
   process.env.NEXT_PUBLIC_INTENT_FUNCTION_URL ??
@@ -173,25 +205,38 @@ export function OpsBotConsole() {
 
         <div className="flex min-w-0 flex-col gap-4 border-t border-border pt-8 md:border-l md:border-t-0 md:pl-10 md:pt-0">
           <div
-            className="robot-stage min-h-80 overflow-hidden rounded-md border border-border bg-secondary max-[420px]:min-h-[280px]"
+            className="robot-stage min-h-80 overflow-hidden rounded-[28px] border border-border bg-secondary max-[420px]:min-h-[280px]"
             data-action={robotAction}
+            data-speaking={requestState === "speaking"}
             aria-label={robotActionLabels[robotAction]}
           >
-            <div className="absolute inset-4 grid grid-cols-2 gap-2">
-              {["Check-in", "Lost & found", "Chargers", "Demo queue"].map((label) => (
+            <div className="absolute inset-3 grid grid-cols-2 gap-3 sm:inset-4 sm:gap-4">
+              {robotDestinations.map((destination) => (
                 <span
-                  className="flex min-h-16 items-center justify-center rounded-md border border-border bg-background px-2 text-center text-xs leading-4 text-muted-foreground"
-                  key={label}
+                  className={cn(
+                    "robot-destination flex min-h-24 flex-col justify-end rounded-[22px] border border-border bg-background p-4 text-left transition-[background-color,border-color,box-shadow]",
+                    robotAction === destination.action && "is-active"
+                  )}
+                  key={destination.action}
                 >
-                  {label}
+                  <span>
+                    <span className="block text-base font-medium leading-5 text-foreground">
+                      {destination.label}
+                    </span>
+                    <span className="mt-1 block text-xs leading-4 text-muted-foreground">
+                      {destination.helper}
+                    </span>
+                  </span>
                 </span>
               ))}
             </div>
-            <div className="absolute left-1/2 top-[54%] h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-background shadow-xs transition-transform">
-              <div className="flex justify-center gap-4 pt-[34px]">
-                <span className="h-2.5 w-2.5 rounded-full bg-foreground" />
-                <span className="h-2.5 w-2.5 rounded-full bg-foreground" />
+            <div className="absolute left-1/2 top-[54%] h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-[30px] border border-border bg-background shadow-[0_24px_48px_-28px_rgba(0,0,0,0.45)] transition-transform">
+              <div className="absolute inset-x-5 top-5 h-1 rounded-full bg-muted" />
+              <div className="flex justify-center gap-5 pt-11">
+                <span className="robot-eye h-3 w-3 rounded-full bg-foreground" />
+                <span className="robot-eye h-3 w-3 rounded-full bg-foreground" />
               </div>
+              <div className="robot-mouth mx-auto mt-6 h-1 w-9 rounded-full bg-border" />
               <div className="robot-pointer" />
             </div>
           </div>
