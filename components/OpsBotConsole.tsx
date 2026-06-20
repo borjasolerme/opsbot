@@ -45,26 +45,31 @@ const robotDestinations: Array<{
   action: Exclude<RobotAction, "idle" | "wave">;
   label: string;
   helper: string;
+  contentClassName: string;
 }> = [
   {
     action: "point_checkin",
     label: "Check-in",
-    helper: "Arrival desk"
+    helper: "Arrival desk",
+    contentClassName: "items-start text-left"
   },
   {
     action: "point_lost_found",
     label: "Lost & found",
-    helper: "Staff handoff"
+    helper: "Staff handoff",
+    contentClassName: "items-end text-right"
   },
   {
     action: "point_charger",
     label: "Chargers",
-    helper: "Accessories table"
+    helper: "Accessories table",
+    contentClassName: "items-start text-left"
   },
   {
     action: "point_demo_queue",
     label: "Demo queue",
-    helper: "Stage timing"
+    helper: "Stage timing",
+    contentClassName: "items-end text-right"
   }
 ];
 
@@ -214,12 +219,13 @@ export function OpsBotConsole() {
               {robotDestinations.map((destination) => (
                 <span
                   className={cn(
-                    "robot-destination flex min-h-24 flex-col justify-end rounded-[22px] border border-border bg-background p-4 text-left transition-[background-color,border-color,box-shadow]",
+                    "robot-destination flex min-h-24 flex-col justify-end rounded-[22px] border border-border bg-background p-4 transition-[background-color,border-color,box-shadow]",
+                    destination.contentClassName,
                     robotAction === destination.action && "is-active"
                   )}
                   key={destination.action}
                 >
-                  <span>
+                  <span className="max-w-[72%]">
                     <span className="block text-base font-medium leading-5 text-foreground">
                       {destination.label}
                     </span>
