@@ -181,13 +181,15 @@ There is no deterministic visitor reply fallback. If ScrapeGraph is unavailable,
 
 ## Interhuman Context Layer
 
-Interhuman is required for `/intent`. The browser sends a short WebM camera/mic clip for every shortcut and Talk request. The Edge Function uploads that clip to Interhuman:
+Interhuman is required for `/intent`. The browser sends a short WebM camera/mic clip for every shortcut and Talk request. The Edge Function uploads that clip to Interhuman with the lighter overall-only conversation quality include:
 
 ```txt
 POST https://api.interhuman.ai/v1/upload/analyze
 Header: Authorization: Bearer <INTERHUMAN_API_KEY>
-Body: multipart/form-data file=<webm>, include[]=conversation_quality_overall, include[]=conversation_quality_timeline
+Body: multipart/form-data file=<webm>, include[]=conversation_quality_overall
 ```
+
+Interhuman also documents a faster `WSS /v1/stream/analyze` route. The current Supabase/Deno route keeps upload/analyze because Interhuman streaming authentication requires a header-capable WebSocket client or proxy, while Deno's native client cannot set the required `Authorization` header.
 
 The Interhuman response is passed to OpenAI as context. If Interhuman credentials are missing or the upload fails, `/intent` returns an error instead of pretending the robot can see people.
 
@@ -441,7 +443,9 @@ These are starter references for anyone who wants to connect OpsBot to event ext
 
 ### Interhuman
 
-- Realtime Analyze API: https://interhumanai-realtime.mintlify.app/api-reference/realtime-analyze
+- Docs: https://docs.interhuman.ai/
+- Streaming Analyze API: https://docs.interhuman.ai/api-reference/stream-analyze
+- Upload Analyze API: https://docs.interhuman.ai/api-reference/upload-analyze
 
 ### Supabase
 

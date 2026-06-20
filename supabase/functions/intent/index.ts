@@ -433,10 +433,23 @@ async function getInterhumanContext(
       typeof mediaMimeTypeInput === "string" && mediaMimeTypeInput.length > 0
         ? mediaMimeTypeInput
         : "video/webm";
+    const mediaBuffer = base64ToArrayBuffer(mediaBase64Input);
+
+    return await uploadInterhumanContext(mediaBuffer, mediaMimeType);
+  } catch (error) {
+    console.error("Interhuman request failed", error);
+    return failedInterhumanContext(error instanceof Error ? error.message : "unknown error");
+  }
+}
+
+async function uploadInterhumanContext(
+  mediaBuffer: ArrayBuffer,
+  mediaMimeType: string
+): Promise<InterhumanContext> {
+  try {
     const form = new FormData();
-    form.append("file", new Blob([base64ToArrayBuffer(mediaBase64Input)], { type: mediaMimeType }), "interaction.webm");
+    form.append("file", new Blob([mediaBuffer], { type: mediaMimeType }), "interaction.webm");
     form.append("include[]", "conversation_quality_overall");
-    form.append("include[]", "conversation_quality_timeline");
 
     const response = await fetch(interhumanAnalyzeUrl, {
       method: "POST",

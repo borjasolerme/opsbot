@@ -78,7 +78,9 @@ OPENAI_TTS_FORMAT=mp3
 OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
 ```
 
-Interhuman is required. The function uploads the request media to `POST /v1/upload/analyze` as multipart form data:
+Interhuman is required. The function sends the request media to `POST /v1/upload/analyze` as multipart form data and requests only `conversation_quality_overall` to keep the response lighter.
+
+Interhuman also documents `WSS /v1/stream/analyze`, but the current Supabase/Deno route keeps upload/analyze because streaming authentication requires a header-capable WebSocket client or proxy.
 
 ```bash
 INTERHUMAN_API_KEY=
