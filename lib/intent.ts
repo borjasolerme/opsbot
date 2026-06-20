@@ -35,6 +35,7 @@ export type IntentResponse = {
   reply: string;
   robot_action: RobotAction;
   robot_status?: RobotStatus;
+  intent_log_id?: string;
   audio_base64?: string;
   audio_mime_type?: string;
   user_message?: string;

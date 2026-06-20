@@ -150,7 +150,7 @@ const robotDestinations: Array<{
 const intentFunctionUrl =
   process.env.NEXT_PUBLIC_INTENT_FUNCTION_URL ??
   "http://127.0.0.1:54331/functions/v1/intent";
-const interhumanMinimumClipMs = 3200;
+const interhumanMinimumClipMs = 1200;
 
 function humanizeSignalLabel(value: string): string {
   return value
@@ -195,7 +195,8 @@ export function OpsBotConsole() {
     if (requestState === "error") return "Function error";
     return "Ready";
   }, [requestState]);
-  const isBusy = requestState === "calling" || requestState === "listening";
+  const isBusy =
+    requestState === "calling" || requestState === "listening" || requestState === "speaking";
   const primarySignal = interhumanSummary?.primary_signal;
   const activePipelineStatus: PipelineStatus =
     requestState === "listening" || requestState === "calling"
@@ -303,11 +304,9 @@ export function OpsBotConsole() {
 
     setPipelineStep("scrapegraph");
     const interhumanTimer = window.setTimeout(() => setPipelineStep("interhuman"), 1300);
-    const cyberwaveTimer = window.setTimeout(() => setPipelineStep("cyberwave"), 3400);
 
     return () => {
       window.clearTimeout(interhumanTimer);
-      window.clearTimeout(cyberwaveTimer);
     };
   }, [requestState]);
 
@@ -412,6 +411,7 @@ export function OpsBotConsole() {
         },
         body: JSON.stringify({
           ...payload,
+          defer_robot: true,
           conversation: requestConversation
         })
       });
@@ -425,7 +425,7 @@ export function OpsBotConsole() {
       setRobotStatus(data.robot_status ?? "skipped");
       setInterhumanSummary(data.interhuman_summary ?? null);
       setHasPipelineResult(true);
-      setPipelineStep("cyberwave");
+      setPipelineStep("reply");
       const userMessage = data.user_message ?? payload.message;
       setConversation((currentConversation) =>
         [
@@ -435,7 +435,8 @@ export function OpsBotConsole() {
         ].filter((turn): turn is ConversationTurn => turn !== null).slice(-8)
       );
 
-      playReplyAudio(data);
+      await playReplyAudio(data);
+      await sendDeferredRobotAction(data.robot_action, data.intent_log_id);
     } catch {
       setRobotAction("idle");
       setRobotStatus("failed");
@@ -501,19 +502,74 @@ export function OpsBotConsole() {
     });
   }
 
-  function playReplyAudio(data: IntentResponse) {
+  async function sendDeferredRobotAction(action: RobotAction, intentLogId?: string) {
+    setPipelineStep("cyberwave");
+
+    try {
+      const response = await fetch("/api/robot-action", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          action,
+          intent_log_id: intentLogId
+        })
+      });
+
+      if (!response.ok) {
+        setRobotStatus("failed");
+        return;
+      }
+
+      const data = (await response.json().catch(() => undefined)) as
+        | { robot_status?: RobotStatus }
+        | undefined;
+      setRobotStatus(data?.robot_status ?? "failed");
+    } catch {
+      setRobotStatus("failed");
+    } finally {
+      setHasPipelineResult(true);
+      setRequestState("ready");
+    }
+  }
+
+  function playReplyAudio(data: IntentResponse): Promise<void> {
     if (!data.audio_base64) {
       setRequestState("speech_unavailable");
-      return;
+      return Promise.resolve();
     }
 
-    audioRef.current?.pause();
-    const audio = new Audio(`data:${data.audio_mime_type ?? "audio/mpeg"};base64,${data.audio_base64}`);
-    audioRef.current = audio;
-    audio.onplay = () => setRequestState("speaking");
-    audio.onended = () => setRequestState("ready");
-    audio.onerror = () => setRequestState("speech_unavailable");
-    void audio.play().catch(() => setRequestState("speech_unavailable"));
+    return new Promise((resolve) => {
+      let isResolved = false;
+      const resolveOnce = () => {
+        if (isResolved) {
+          return;
+        }
+
+        isResolved = true;
+        resolve();
+      };
+
+      audioRef.current?.pause();
+      const audio = new Audio(
+        `data:${data.audio_mime_type ?? "audio/mpeg"};base64,${data.audio_base64}`
+      );
+      audioRef.current = audio;
+      audio.onplay = () => setRequestState("speaking");
+      audio.onended = () => {
+        setRequestState("ready");
+        resolveOnce();
+      };
+      audio.onerror = () => {
+        setRequestState("speech_unavailable");
+        resolveOnce();
+      };
+      void audio.play().catch(() => {
+        setRequestState("speech_unavailable");
+        resolveOnce();
+      });
+    });
   }
 
   return (
@@ -532,7 +588,7 @@ export function OpsBotConsole() {
             <span
               className={cn(
                 "h-2 w-2 rounded-full bg-success",
-                (isBusy || requestState === "speaking") && "bg-warning",
+                isBusy && "bg-warning",
                 (requestState === "speech_unavailable" || requestState === "error") &&
                   "bg-destructive"
               )}

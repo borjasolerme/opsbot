@@ -26,6 +26,7 @@ type IntentReply = {
 
 type IntentResponse = IntentReply & {
   robot_status: RobotStatus;
+  intent_log_id?: string;
 };
 
 type IntentPayload = {
@@ -36,6 +37,7 @@ type IntentPayload = {
   audio_mime_type?: unknown;
   media_base64?: unknown;
   media_mime_type?: unknown;
+  defer_robot?: unknown;
 };
 
 type IntentContext = {
@@ -108,13 +110,14 @@ const sourceConfigs: Record<IntentId, SourceConfig> = {
     env_name: "LUMA_EVENT_URL",
     default_url: "https://luma.com/mmc68m0b?tk=O68Z91",
     prompt:
-      "Extract only factual event title, venue, start time, and visitor check-in/start instructions visible on the page.",
+      "Extract only factual event title, venue, start time, end time, and visitor check-in/start instructions visible on the page.",
     schema: {
       type: "object",
       properties: {
         event_title: { type: "string" },
         venue: { type: "string" },
         start_time: { type: "string" },
+        end_time: { type: "string" },
         check_in_instructions: { type: "string" },
         start_instructions: { type: "string" }
       }
@@ -156,10 +159,12 @@ const sourceConfigs: Record<IntentId, SourceConfig> = {
     env_name: "LUMA_EVENT_URL",
     default_url: "https://luma.com/mmc68m0b?tk=O68Z91",
     prompt:
-      "Extract only factual agenda, schedule milestones, code-freeze time, and demo time visible on the page.",
+      "Extract only factual agenda, schedule milestones, start time, end time, code-freeze time, and demo time visible on the page.",
     schema: {
       type: "object",
       properties: {
+        start_time: { type: "string" },
+        end_time: { type: "string" },
         agenda: { type: "array", items: { type: "string" } },
         code_freeze: { type: "string" },
         demo_time: { type: "string" },
@@ -286,12 +291,14 @@ async function getSourceContexts(intent: unknown): Promise<IntentContext[]> {
       env_name: "LUMA_EVENT_URL",
       default_url: sourceConfigs.demo_schedule.default_url,
       prompt:
-        "Extract factual event information useful for answering visitor questions: title, venue, schedule, agenda, hosts, speakers, sponsors, demo timing, check-in, food, and other visible public details.",
+        "Extract factual event information useful for answering visitor questions: title, venue, start time, end time, schedule, agenda, hosts, speakers, sponsors, demo timing, check-in, food, and other visible public details.",
       schema: {
         type: "object",
         properties: {
           title: { type: "string" },
           venue: { type: "string" },
+          start_time: { type: "string" },
+          end_time: { type: "string" },
           schedule: { type: "array", items: { type: "string" } },
           people: { type: "array", items: { type: "string" } },
           visitor_details: { type: "array", items: { type: "string" } }
@@ -909,6 +916,18 @@ serve(async (request) => {
       { error: "Intent logging did not return a row." },
       { status: 500, headers: corsHeaders }
     );
+  }
+
+  if (payload.defer_robot === true) {
+    const deferredResponse: IntentResponse = {
+      ...response,
+      robot_status: "skipped",
+      intent_log_id: logRow.id
+    };
+
+    return Response.json(deferredResponse, {
+      headers: corsHeaders
+    });
   }
 
   const robotStatus = await sendRobotAction(response.robot_action);

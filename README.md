@@ -79,11 +79,13 @@ Next.js calls the Supabase Edge Function /intent
 ↓
 Function calls ScrapeGraph, Interhuman, and OpenAI
 ↓
-Function returns OpenAI reply audio + robot_action + robot_status
+Function returns OpenAI reply audio + robot_action
 ↓
 The phone web app plays OpenAI speech
 ↓
-The Python bridge moves the Cyberwave robot
+Next.js calls /api/robot-action after speech playback
+↓
+The Python bridge moves the Cyberwave robot and updates robot_status
 ```
 
 ## MVP Buttons
@@ -100,7 +102,8 @@ The Python bridge moves the Cyberwave robot
 {
   "reply": "<OpenAI-generated speech text>",
   "robot_action": "point_demo_queue",
-  "robot_status": "sent",
+  "robot_status": "skipped",
+  "intent_log_id": "<supabase-log-row-id>",
   "audio_base64": "<mp3-base64>",
   "audio_mime_type": "audio/mpeg"
 }
@@ -215,7 +218,7 @@ OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
 
 ## Robot Bridge
 
-The robot bridge is a small FastAPI service in `robot_bridge/`.
+The robot bridge is a small Python HTTP service in `robot_bridge/`.
 
 It receives an OpsBot robot action, maps it to Cyberwave behavior, and returns `sent` after Cyberwave accepts the initial SDK position update. Rotation, camera, and drive gestures continue inside the bridge process so the Supabase Edge Function does not hit its wall-clock limit. Cyberwave SDK code only lives in `robot_bridge/cyberwave_adapter.py`.
 
@@ -336,9 +339,10 @@ Then set the Edge Function bridge URL to the Docker service name:
 
 ```bash
 ROBOT_BRIDGE_URL="http://opsbot_robot_bridge:8765"
+NEXT_SERVER_ROBOT_BRIDGE_URL="http://127.0.0.1:8765"
 ```
 
-Restart `npm run dev:intent` after changing `.env.local`; the Edge runtime only reads env vars at startup.
+`ROBOT_BRIDGE_URL` is for Supabase/Docker. `NEXT_SERVER_ROBOT_BRIDGE_URL` is for the Next.js API route that runs on the host after the speech finishes. Restart `npm run dev:intent` after changing `.env.local`; the Edge runtime only reads env vars at startup.
 
 To prove the demo triggered the robot, query the latest Supabase log row:
 
@@ -360,11 +364,13 @@ npm run test:robot
 ```txt
 Function returns
 ↓
-reply + audio_base64 + robot_action + robot_status
+reply + audio_base64 + robot_action + intent_log_id
 ↓
 OpenAI speech audio playback
 ↓
-robot action UI + Cyberwave bridge dispatch
+/api/robot-action dispatches to the Cyberwave bridge
+↓
+robot_status becomes sent/failed/skipped
 ```
 
 The Next.js app calls `NEXT_PUBLIC_INTENT_FUNCTION_URL`, which defaults to the local Supabase Functions endpoint.
