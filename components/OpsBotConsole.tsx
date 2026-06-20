@@ -29,15 +29,11 @@ const intentIcons: Record<IntentId, ComponentType<{ className?: string }>> = {
   demo_schedule: Clock3
 };
 
-const intentButtonGradients: Record<IntentId, string> = {
-  check_in:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(255,90,95,0.14),transparent_32%),radial-gradient(circle_at_88%_24%,rgba(0,166,153,0.08),transparent_32%),linear-gradient(to_left,rgba(252,100,45,0.06),transparent_76%)]",
-  lost_item:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(252,100,45,0.12),transparent_32%),radial-gradient(circle_at_86%_28%,rgba(255,90,95,0.10),transparent_34%),linear-gradient(to_left,rgba(118,118,118,0.05),transparent_76%)]",
-  charger_request:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(0,166,153,0.11),transparent_32%),radial-gradient(circle_at_88%_24%,rgba(252,100,45,0.09),transparent_32%),linear-gradient(to_left,rgba(255,90,95,0.06),transparent_76%)]",
-  demo_schedule:
-    "before:bg-[radial-gradient(circle_at_100%_0%,rgba(255,90,95,0.12),transparent_32%),radial-gradient(circle_at_86%_26%,rgba(252,100,45,0.09),transparent_32%),linear-gradient(to_left,rgba(0,166,153,0.05),transparent_76%)]"
+const intentIconSurfaces: Record<IntentId, string> = {
+  check_in: "bg-[#fff1f1] text-[#ff5a5f]",
+  lost_item: "bg-[#fff4ed] text-[#fc642d]",
+  charger_request: "bg-[#edf8f7] text-[#00a699]",
+  demo_schedule: "bg-[#fff1f1] text-[#ff5a5f]"
 };
 
 export function OpsBotConsole() {
@@ -124,11 +120,8 @@ export function OpsBotConsole() {
         </div>
       </section>
 
-      <section
-        className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)] md:gap-10"
-        aria-label="OpsBot controls and robot state"
-      >
-        <div className="flex min-w-0 flex-col gap-4">
+      <section className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(360px,0.78fr)_minmax(0,1.22fr)] md:gap-10" aria-label="OpsBot controls and robot state">
+        <div className="min-w-0">
           <div>
             <p className="text-xs font-medium leading-4 text-muted-foreground">
               Visitor request
@@ -138,16 +131,15 @@ export function OpsBotConsole() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="mt-6 grid gap-3">
             {intentOptions.map((option) => {
               const Icon = intentIcons[option.id];
 
               return (
                 <Button
                   className={cn(
-                    "relative h-24 justify-start gap-4 overflow-hidden border bg-background px-5 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] before:pointer-events-none before:absolute before:inset-0 before:opacity-80 before:transition-opacity before:content-[''] before:[mask-image:linear-gradient(to_left,black_0%,black_38%,transparent_100%)] hover:-translate-y-0.5 hover:border-[#ff5a5f]/30 hover:bg-background hover:shadow-[0_10px_24px_-20px_rgba(255,90,95,0.45)] hover:before:opacity-100 active:translate-y-px [&_svg]:size-5",
-                    intentButtonGradients[option.id],
-                    lastIntent === option.id && "border-ring bg-blue-50 hover:bg-blue-50"
+                    "h-[92px] w-full justify-start gap-4 rounded-[18px] border border-border bg-background px-4 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[#ff5a5f]/20 hover:bg-[#f7f7f7] hover:shadow-[0_12px_24px_-22px_rgba(0,0,0,0.55)] active:translate-y-px [&_svg]:size-6",
+                    lastIntent === option.id && "border-[#ff5a5f]/25 bg-[#f7f7f7]"
                   )}
                   disabled={requestState === "calling"}
                   key={option.id}
@@ -155,10 +147,17 @@ export function OpsBotConsole() {
                   type="button"
                   variant="secondary"
                 >
-                  <Icon className="relative z-10 text-muted-foreground" aria-hidden="true" />
+                  <span
+                    className={cn(
+                      "relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px]",
+                      intentIconSurfaces[option.id]
+                    )}
+                  >
+                    <Icon aria-hidden="true" />
+                  </span>
                   <span className="relative z-10 flex min-w-0 flex-col">
                     <span className="truncate text-lg font-medium leading-6">{option.label}</span>
-                    <span className="truncate text-sm font-normal leading-5 text-muted-foreground">
+                    <span className="truncate text-base font-normal leading-6 text-muted-foreground">
                       {option.helper}
                     </span>
                   </span>

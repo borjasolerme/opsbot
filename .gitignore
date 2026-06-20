@@ -7,6 +7,8 @@ out/
 
 # Supabase
 .supabase/
+supabase/.temp/
+supabase/.branches/
 
 # Environment
 .env
