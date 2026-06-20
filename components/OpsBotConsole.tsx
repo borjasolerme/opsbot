@@ -32,6 +32,7 @@ type RequestState =
   | "listening"
   | "calling"
   | "speaking"
+  | "robot_dispatching"
   | "speech_unavailable"
   | "error";
 type ConversationTurn = { role: "user" | "assistant"; content: string };
@@ -186,20 +187,27 @@ export function OpsBotConsole() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
+  const robotDispatchStartedRef = useRef(false);
 
   const statusLabel = useMemo(() => {
     if (requestState === "calling") return "Calling Edge Function";
     if (requestState === "listening") return "Listening";
     if (requestState === "speaking") return "Speaking reply";
+    if (requestState === "robot_dispatching") return "Moving robot";
     if (requestState === "speech_unavailable") return "Speech unavailable";
     if (requestState === "error") return "Function error";
     return "Ready";
   }, [requestState]);
   const isBusy =
-    requestState === "calling" || requestState === "listening" || requestState === "speaking";
+    requestState === "calling" ||
+    requestState === "listening" ||
+    requestState === "speaking" ||
+    requestState === "robot_dispatching";
   const primarySignal = interhumanSummary?.primary_signal;
   const activePipelineStatus: PipelineStatus =
-    requestState === "listening" || requestState === "calling"
+    requestState === "listening" ||
+    requestState === "calling" ||
+    requestState === "robot_dispatching"
       ? "active"
       : requestState === "error"
         ? "failed"
@@ -218,6 +226,13 @@ export function OpsBotConsole() {
       return {
         label: "Speaking reply",
         helper: "Playing OpsBot response."
+      };
+    }
+
+    if (requestState === "robot_dispatching") {
+      return {
+        label: "Cyberwave",
+        helper: "Sending robot action."
       };
     }
 
@@ -398,6 +413,7 @@ export function OpsBotConsole() {
     media_mime_type?: string;
   }) {
     const requestConversation = conversation;
+    robotDispatchStartedRef.current = false;
     setRobotStatus("skipped");
     setInterhumanSummary(null);
     setHasPipelineResult(false);
@@ -503,6 +519,8 @@ export function OpsBotConsole() {
   }
 
   async function sendDeferredRobotAction(action: RobotAction, intentLogId?: string) {
+    robotDispatchStartedRef.current = true;
+    setRequestState("robot_dispatching");
     setPipelineStep("cyberwave");
 
     try {
@@ -556,9 +574,14 @@ export function OpsBotConsole() {
         `data:${data.audio_mime_type ?? "audio/mpeg"};base64,${data.audio_base64}`
       );
       audioRef.current = audio;
-      audio.onplay = () => setRequestState("speaking");
+      audio.onplay = () => {
+        setRequestState("speaking");
+        window.setTimeout(resolveOnce, 450);
+      };
       audio.onended = () => {
-        setRequestState("ready");
+        if (!robotDispatchStartedRef.current) {
+          setRequestState("ready");
+        }
         resolveOnce();
       };
       audio.onerror = () => {
