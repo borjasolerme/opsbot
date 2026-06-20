@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 type IntentId = "check_in" | "lost_item" | "charger_request" | "demo_schedule";
 type RobotAction =
@@ -38,6 +39,33 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
+function getSupabaseSecretKey(): string | undefined {
+  const secretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
+
+  if (secretKeys) {
+    try {
+      const parsed = JSON.parse(secretKeys) as Record<string, string>;
+      return parsed.default;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+}
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL");
+const supabaseSecretKey = getSupabaseSecretKey();
+const supabaseAdmin =
+  supabaseUrl && supabaseSecretKey
+    ? createClient(supabaseUrl, supabaseSecretKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      })
+    : undefined;
+
 function resolveIntent(intent: unknown): IntentResponse {
   if (
     intent === "check_in" ||
@@ -52,6 +80,10 @@ function resolveIntent(intent: unknown): IntentResponse {
     reply: "I can help with check-in, lost items, chargers, or the demo schedule.",
     robot_action: "idle"
   };
+}
+
+function getLoggedIntent(intent: unknown): string {
+  return typeof intent === "string" && intent.length > 0 ? intent : "unknown";
 }
 
 serve(async (request) => {
@@ -74,7 +106,29 @@ serve(async (request) => {
     payload = {};
   }
 
-  return Response.json(resolveIntent(payload.intent), {
+  const response = resolveIntent(payload.intent);
+
+  if (!supabaseAdmin) {
+    return Response.json(
+      { error: "Intent logging is not configured." },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+
+  const { error } = await supabaseAdmin.from("intent_logs").insert({
+    intent: getLoggedIntent(payload.intent),
+    reply: response.reply,
+    robot_action: response.robot_action
+  });
+
+  if (error) {
+    return Response.json(
+      { error: "Intent logging failed." },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+
+  return Response.json(response, {
     headers: corsHeaders
   });
 });
