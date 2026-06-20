@@ -131,7 +131,6 @@ const intentFunctionUrl =
   process.env.NEXT_PUBLIC_INTENT_FUNCTION_URL ??
   "http://127.0.0.1:54331/functions/v1/intent";
 const interhumanMinimumClipMs = 3200;
-const talkClipMs = 4500;
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer();
@@ -156,7 +155,6 @@ export function OpsBotConsole() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
-  const recordingStartedAtRef = useRef(0);
 
   const statusLabel = useMemo(() => {
     if (requestState === "calling") return "Calling Edge Function";
@@ -187,6 +185,7 @@ export function OpsBotConsole() {
 
   async function toggleRecording() {
     if (isRecording) {
+      mediaRecorderRef.current?.stop();
       return;
     }
 
@@ -200,7 +199,6 @@ export function OpsBotConsole() {
       const recorder = new MediaRecorder(stream);
       recordingChunksRef.current = [];
       mediaRecorderRef.current = recorder;
-      recordingStartedAtRef.current = Date.now();
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -241,7 +239,6 @@ export function OpsBotConsole() {
       recorder.start();
       setIsRecording(true);
       setRequestState("listening");
-      window.setTimeout(() => mediaRecorderRef.current?.stop(), talkClipMs);
     } catch {
       setRequestState("speech_unavailable");
     }
@@ -450,13 +447,13 @@ export function OpsBotConsole() {
 
           <Button
             className="mt-4 h-14 w-full gap-3 rounded-[18px] text-base"
-            disabled={requestState === "calling" || requestState === "listening"}
+            disabled={requestState === "calling"}
             onClick={toggleRecording}
             type="button"
             variant={isRecording ? "default" : "secondary"}
           >
             <Mic aria-hidden="true" />
-            {isRecording ? "Listening" : "Talk"}
+            {isRecording ? "Stop" : "Talk"}
           </Button>
 
         </div>
