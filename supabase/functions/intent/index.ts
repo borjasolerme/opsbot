@@ -215,6 +215,14 @@ const interhumanAnalyzeUrl =
   Deno.env.get("INTERHUMAN_ANALYZE_URL") ?? "https://api.interhuman.ai/v1/upload/analyze";
 
 function getSupabaseSecretKey(): string | undefined {
+  const explicitKey =
+    Deno.env.get("OPSBOT_SUPABASE_SERVICE_ROLE_KEY") ??
+    Deno.env.get("SERVICE_ROLE_KEY");
+
+  if (explicitKey) {
+    return explicitKey;
+  }
+
   const secretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
 
   if (secretKeys) {
@@ -239,11 +247,13 @@ function isIntentId(intent: unknown): intent is IntentId {
 }
 
 async function resolveIntent(payload: IntentPayload): Promise<IntentReply> {
-  const message = await getUserMessage(payload);
   const expectedAction = isIntentId(payload.intent) ? robotActions[payload.intent] : undefined;
-  const sourceContext = await getSourceContexts(payload.intent);
-  const interhumanContext = await getInterhumanContext(payload.media_base64, payload.media_mime_type);
   const conversation = getConversationTurns(payload.conversation);
+  const [message, sourceContext, interhumanContext] = await Promise.all([
+    getUserMessage(payload),
+    getSourceContexts(payload.intent),
+    getInterhumanContext(payload.media_base64, payload.media_mime_type)
+  ]);
   const decision = await generateDecision({
     intent: payload.intent,
     message,

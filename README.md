@@ -19,6 +19,7 @@ cp .env.example .env.local
 ```
 
 Fill `.env.local` with the Supabase, ScrapeGraph, Interhuman, Cyberwave, and OpenAI keys needed for your local run.
+Use `OPSBOT_SUPABASE_SERVICE_ROLE_KEY` for the local service role key; Supabase local serve ignores env names that start with `SUPABASE_`.
 
 Start the local Supabase Edge Function:
 
@@ -77,7 +78,7 @@ The browser captures a short camera/mic clip
 ↓
 Next.js calls the Supabase Edge Function /intent
 ↓
-Function calls ScrapeGraph, Interhuman, and OpenAI
+Function runs transcription, ScrapeGraph, and Interhuman in parallel, then calls OpenAI
 ↓
 Function returns OpenAI reply audio + robot_action
 ↓
