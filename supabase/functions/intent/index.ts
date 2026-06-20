@@ -9,13 +9,18 @@ type RobotAction =
   | "point_demo_queue"
   | "wave"
   | "idle";
+type RobotStatus = "sent" | "failed" | "skipped";
 
-type IntentResponse = {
+type IntentReply = {
   reply: string;
   robot_action: RobotAction;
 };
 
-const mockedReplies: Record<IntentId, IntentResponse> = {
+type IntentResponse = IntentReply & {
+  robot_status: RobotStatus;
+};
+
+const mockedReplies: Record<IntentId, IntentReply> = {
   check_in: {
     reply: "Welcome. Check-in closes at 10:30 and hacking starts at 10:30.",
     robot_action: "point_checkin"
@@ -65,8 +70,9 @@ const supabaseAdmin =
         }
       })
     : undefined;
+const robotBridgeUrl = Deno.env.get("ROBOT_BRIDGE_URL");
 
-function resolveIntent(intent: unknown): IntentResponse {
+function resolveIntent(intent: unknown): IntentReply {
   if (
     intent === "check_in" ||
     intent === "lost_item" ||
@@ -84,6 +90,41 @@ function resolveIntent(intent: unknown): IntentResponse {
 
 function getLoggedIntent(intent: unknown): string {
   return typeof intent === "string" && intent.length > 0 ? intent : "unknown";
+}
+
+async function sendRobotAction(action: RobotAction): Promise<RobotStatus> {
+  if (!robotBridgeUrl || action === "idle") {
+    return "skipped";
+  }
+
+  const url = robotBridgeUrl.endsWith("/action")
+    ? robotBridgeUrl
+    : new URL("action", robotBridgeUrl.endsWith("/") ? robotBridgeUrl : `${robotBridgeUrl}/`)
+        .toString();
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ action })
+    });
+
+    if (!response.ok) {
+      console.error("Robot bridge rejected action", response.status);
+      return "failed";
+    }
+
+    const bridgeResponse = (await response.json().catch(() => undefined)) as
+      | { ok?: unknown }
+      | undefined;
+
+    return bridgeResponse?.ok === true ? "sent" : "failed";
+  } catch (error) {
+    console.error("Robot bridge request failed", error);
+    return "failed";
+  }
 }
 
 serve(async (request) => {
@@ -115,11 +156,16 @@ serve(async (request) => {
     );
   }
 
-  const { error } = await supabaseAdmin.from("intent_logs").insert({
-    intent: getLoggedIntent(payload.intent),
-    reply: response.reply,
-    robot_action: response.robot_action
-  });
+  const { data: logRow, error } = await supabaseAdmin
+    .from("intent_logs")
+    .insert({
+      intent: getLoggedIntent(payload.intent),
+      reply: response.reply,
+      robot_action: response.robot_action,
+      robot_status: "skipped"
+    })
+    .select("id")
+    .single();
 
   if (error) {
     return Response.json(
@@ -128,7 +174,32 @@ serve(async (request) => {
     );
   }
 
-  return Response.json(response, {
+  if (!logRow) {
+    return Response.json(
+      { error: "Intent logging did not return a row." },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+
+  const robotStatus = await sendRobotAction(response.robot_action);
+  const { error: robotStatusError } = await supabaseAdmin
+    .from("intent_logs")
+    .update({ robot_status: robotStatus })
+    .eq("id", logRow.id);
+
+  if (robotStatusError) {
+    return Response.json(
+      { error: "Robot status logging failed." },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+
+  const responseWithRobotStatus: IntentResponse = {
+    ...response,
+    robot_status: robotStatus
+  };
+
+  return Response.json(responseWithRobotStatus, {
     headers: corsHeaders
   });
 });

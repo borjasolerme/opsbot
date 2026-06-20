@@ -95,7 +95,8 @@ Robot action is mocked first, then connected to Cyberwave
 ```json
 {
   "reply": "Code freeze is at 17:00 and live demos start at 17:30.",
-  "robot_action": "point_demo_queue"
+  "robot_action": "point_demo_queue",
+  "robot_status": "sent"
 }
 ```
 
@@ -116,6 +117,128 @@ The mocked loop now uses the local Supabase Edge Function:
 iPhone web app button
 ↓
 Supabase Edge Function /intent
+↓
+Supabase log
+↓
+Robot bridge
+↓
+Cyberwave
+↓
+selected robot
+```
+
+The web app still renders the mocked robot state immediately from the Edge Function response. The real robot path is isolated in the Python bridge.
+
+## Robot Bridge
+
+The robot bridge is a small Python service in `robot_bridge/`.
+
+It receives an OpsBot robot action, maps it to robot behavior, and sends the command to Cyberwave. Cyberwave SDK code only lives in `robot_bridge/cyberwave_adapter.py`.
+
+Run it locally:
+
+```bash
+cd opsbot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r robot_bridge/requirements.txt
+python -m robot_bridge.server
+```
+
+Send a test action:
+
+```bash
+curl -X POST http://127.0.0.1:8765/action \
+  -H "Content-Type: application/json" \
+  -d '{"action":"point_demo_queue"}'
+```
+
+Expected response:
+
+```json
+{ "ok": true, "action": "point_demo_queue" }
+```
+
+Bridge configuration:
+
+```bash
+export CYBERWAVE_API_KEY="cw_your_token"
+export CYBERWAVE_WORKSPACE="borjas-workspace"
+export CYBERWAVE_ENVIRONMENT_ID="borjas-workspace/envs/opsbot-hackathon-demo"
+export CYBERWAVE_ROBOT_REGISTRY_ID="waveshare/ugv-beast"
+export CYBERWAVE_ROBOT_ID="your_twin_uuid_or_slug"
+export ROBOT_MODE="simulation"
+export CYBERWAVE_AFFECT="simulation"
+export CYBERWAVE_SIMULATION_VISIBILITY_MODE="scene_edit"
+```
+
+If `CYBERWAVE_ROBOT_ID` is not set, the adapter falls back to `CYBERWAVE_ROBOT_REGISTRY_ID` (`waveshare/ugv-beast` by default) and `CYBERWAVE_ENVIRONMENT_ID`.
+
+Use `ROBOT_MODE=simulation` while the Cyberwave environment is in Simulate mode. Switch it to `live` only when controlling the physical robot. `CYBERWAVE_AFFECT` remains as a backward-compatible fallback.
+
+Each bridge action logs the mode and action:
+
+```txt
+Robot mode: simulation
+Action sent: point_demo_queue
+```
+
+`CYBERWAVE_SIMULATION_VISIBILITY_MODE=scene_edit` also updates the UGV Beast scene rotation through Cyberwave REST after publishing the MQTT movement command. This makes OpsBot actions visible in the Cyberwave viewport even when no mission workflow execution is created.
+
+The Cyberwave MCP control surface for this environment reports the UGV Beast as a mobile base with `locomotion` and `camera` capabilities. Direct joint targets are listed as not currently available for this twin, so the bridge uses small chassis movements plus camera pan/tilt instead of raw wheel or pan/tilt joint commands.
+
+Current UGV Beast action mapping:
+
+| OpsBot action | Cyberwave commands |
+| --- | --- |
+| `point_checkin` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_up`, smooth scene yaw `-18` |
+| `point_lost_found` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_up`, smooth scene yaw `18` |
+| `point_charger` | stop, scan left/right with camera, small forward move, gentle `turn_left`, `camera_left`, `camera_down`, smooth scene yaw `-30` |
+| `point_demo_queue` | stop, scan left/right with camera, small forward move, gentle `turn_right`, `camera_right`, `camera_down`, smooth scene yaw `30` |
+| `wave` | stop, center camera, small left/right/center chassis gesture |
+| `idle` | `stop` |
+
+If the bridge returns `ok: true` but the Cyberwave viewport does not move:
+
+- Sign back into Cyberwave if the page says your login expired.
+- Start the Cyberwave simulation. The right panel should not say `No active simulation`.
+- Keep `npm run dev:robot` open and check for `Cyberwave target` and `Cyberwave command` lines.
+- Run the direct bridge curl before testing the OpsBot UI.
+
+To connect the Supabase Edge Function to the bridge, set:
+
+```bash
+export ROBOT_BRIDGE_URL="http://host.docker.internal:8765"
+```
+
+Use `host.docker.internal` for local Supabase because the Edge Function runs inside Docker while the bridge runs on your Mac.
+The `npm run dev:intent` script loads `.env.local` so this value is available to the Edge Function.
+
+Bind the bridge to `0.0.0.0` locally so Supabase Docker can reach it:
+
+```bash
+export ROBOT_BRIDGE_HOST="0.0.0.0"
+```
+
+To prove the demo triggered the robot, query the latest Supabase log row:
+
+```sql
+select intent, reply, robot_action, robot_status, created_at
+from public.intent_logs
+order by created_at desc
+limit 1;
+```
+
+Useful bridge checks:
+
+```bash
+npm run test:robot
+```
+
+## Frontend Response
+
+```txt
+Function returns
 ↓
 reply + robot_action
 ↓

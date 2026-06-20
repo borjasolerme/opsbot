@@ -6,14 +6,15 @@ import {
   Clock3,
   PackageSearch
 } from "lucide-react";
-import { type ComponentType, useMemo, useState } from "react";
+import { type ComponentType, type CSSProperties, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   intentOptions,
   type IntentId,
   type IntentResponse,
-  type RobotAction
+  type RobotAction,
+  type RobotStatus
 } from "@/lib/intent";
 
 type RequestState = "ready" | "calling" | "speaking" | "speech_unavailable" | "error";
@@ -27,6 +28,12 @@ const robotActionLabels: Record<IntentResponse["robot_action"], string> = {
   idle: "Idle"
 };
 
+const robotStatusLabels: Record<RobotStatus, string> = {
+  sent: "Robot: sent",
+  failed: "Robot: failed",
+  skipped: "Robot: skipped"
+};
+
 const intentIcons: Record<IntentId, ComponentType<{ className?: string }>> = {
   check_in: CheckCircle2,
   lost_item: PackageSearch,
@@ -34,11 +41,39 @@ const intentIcons: Record<IntentId, ComponentType<{ className?: string }>> = {
   demo_schedule: Clock3
 };
 
-const intentIconSurfaces: Record<IntentId, string> = {
-  check_in: "bg-[#fff1f1] text-[#ff5a5f]",
-  lost_item: "bg-[#fff4ed] text-[#fc642d]",
-  charger_request: "bg-[#edf8f7] text-[#00a699]",
-  demo_schedule: "bg-[#fff1f1] text-[#ff5a5f]"
+const intentIconSurfaces: Record<IntentId, { className: string; style: CSSProperties }> = {
+  check_in: {
+    className: "text-[#ff5a5f]",
+    style: {
+      backgroundColor: "#fff1f1",
+      backgroundImage:
+        "radial-gradient(circle at 72% 28%, rgba(255, 90, 95, 0.18) 0 24%, transparent 46%), radial-gradient(circle at 70% 82%, rgba(255, 186, 188, 0.34) 0 28%, transparent 52%), linear-gradient(135deg, #fff8f8 0%, #ffeded 100%)"
+    }
+  },
+  lost_item: {
+    className: "text-[#fc642d]",
+    style: {
+      backgroundColor: "#fff4ed",
+      backgroundImage:
+        "radial-gradient(circle at 76% 30%, rgba(252, 100, 45, 0.17) 0 24%, transparent 46%), radial-gradient(circle at 72% 84%, rgba(255, 195, 143, 0.3) 0 29%, transparent 54%), linear-gradient(135deg, #fff9f4 0%, #fff0e6 100%)"
+    }
+  },
+  charger_request: {
+    className: "text-[#00a699]",
+    style: {
+      backgroundColor: "#edf8f7",
+      backgroundImage:
+        "radial-gradient(circle at 76% 30%, rgba(0, 166, 153, 0.15) 0 25%, transparent 48%), radial-gradient(circle at 70% 82%, rgba(128, 214, 207, 0.28) 0 29%, transparent 54%), linear-gradient(135deg, #f5fcfb 0%, #e8f7f5 100%)"
+    }
+  },
+  demo_schedule: {
+    className: "text-[#ff5a5f]",
+    style: {
+      backgroundColor: "#fff1f1",
+      backgroundImage:
+        "radial-gradient(circle at 72% 28%, rgba(255, 90, 95, 0.18) 0 24%, transparent 46%), radial-gradient(circle at 70% 82%, rgba(255, 186, 188, 0.34) 0 28%, transparent 52%), linear-gradient(135deg, #fff8f8 0%, #ffeded 100%)"
+    }
+  }
 };
 
 const robotDestinations: Array<{
@@ -79,6 +114,7 @@ const intentFunctionUrl =
 
 export function OpsBotConsole() {
   const [robotAction, setRobotAction] = useState<IntentResponse["robot_action"]>("idle");
+  const [robotStatus, setRobotStatus] = useState<RobotStatus>("skipped");
   const [requestState, setRequestState] = useState<RequestState>("ready");
   const [lastIntent, setLastIntent] = useState<IntentId | null>(null);
 
@@ -92,6 +128,7 @@ export function OpsBotConsole() {
 
   async function handleIntent(intent: IntentId) {
     setLastIntent(intent);
+    setRobotStatus("skipped");
     setRequestState("calling");
 
     try {
@@ -109,10 +146,12 @@ export function OpsBotConsole() {
 
       const data = (await response.json()) as IntentResponse;
       setRobotAction(data.robot_action);
+      setRobotStatus(data.robot_status ?? "skipped");
 
       speakReply(data.reply);
     } catch {
       setRobotAction("idle");
+      setRobotStatus("failed");
       setRequestState("error");
     }
   }
@@ -144,20 +183,30 @@ export function OpsBotConsole() {
             Phone front desk
           </h1>
         </div>
-        <div
-          className="inline-flex min-h-8 items-center gap-2 whitespace-nowrap rounded-full border border-border bg-background px-3 text-[13px] leading-4 text-muted-foreground"
-          aria-live="polite"
-        >
-          <span
-            className={cn(
-              "h-2 w-2 rounded-full bg-success",
-              (requestState === "calling" || requestState === "speaking") && "bg-warning",
-              (requestState === "speech_unavailable" || requestState === "error") &&
-                "bg-destructive"
-            )}
-            aria-hidden="true"
-          />
-          {statusLabel}
+        <div className="flex flex-wrap items-center gap-2" aria-live="polite">
+          <div className="inline-flex min-h-8 items-center gap-2 whitespace-nowrap rounded-full border border-border bg-background px-3 text-[13px] leading-4 text-muted-foreground">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full bg-success",
+                (requestState === "calling" || requestState === "speaking") && "bg-warning",
+                (requestState === "speech_unavailable" || requestState === "error") &&
+                  "bg-destructive"
+              )}
+              aria-hidden="true"
+            />
+            {statusLabel}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-2 whitespace-nowrap rounded-full border border-border bg-background px-3 text-[13px] leading-4 text-muted-foreground">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full bg-muted-foreground/45",
+                robotStatus === "sent" && "bg-success",
+                robotStatus === "failed" && "bg-destructive"
+              )}
+              aria-hidden="true"
+            />
+            {robotStatusLabels[robotStatus]}
+          </div>
         </div>
       </section>
 
@@ -175,6 +224,7 @@ export function OpsBotConsole() {
           <div className="mt-6 grid gap-3">
             {intentOptions.map((option) => {
               const Icon = intentIcons[option.id];
+              const iconSurface = intentIconSurfaces[option.id];
 
               return (
                 <Button
@@ -191,8 +241,9 @@ export function OpsBotConsole() {
                   <span
                     className={cn(
                       "relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px]",
-                      intentIconSurfaces[option.id]
+                      iconSurface.className
                     )}
+                    style={iconSurface.style}
                   >
                     <Icon aria-hidden="true" />
                   </span>

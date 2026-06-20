@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+.venv/
+__pycache__/
+*.py[cod]
 
 # Next.js
 .next/
@@ -21,6 +24,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .playwright-cli/
+robot_bridge/bridge.log
 
 # System files
 .DS_Store

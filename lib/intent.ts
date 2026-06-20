@@ -14,10 +14,12 @@ export type RobotAction =
   | "point_demo_queue"
   | "wave"
   | "idle";
+export type RobotStatus = "sent" | "failed" | "skipped";
 
 export type IntentResponse = {
   reply: string;
   robot_action: RobotAction;
+  robot_status?: RobotStatus;
 };
 
 export const intentOptions: Array<{
