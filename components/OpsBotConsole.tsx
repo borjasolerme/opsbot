@@ -36,13 +36,17 @@ const intentIconSurfaces: Record<IntentId, string> = {
   demo_schedule: "bg-[#fff1f1] text-[#ff5a5f]"
 };
 
+const intentFunctionUrl =
+  process.env.NEXT_PUBLIC_INTENT_FUNCTION_URL ??
+  "http://127.0.0.1:54331/functions/v1/intent";
+
 export function OpsBotConsole() {
   const [robotAction, setRobotAction] = useState<IntentResponse["robot_action"]>("idle");
   const [requestState, setRequestState] = useState<RequestState>("ready");
   const [lastIntent, setLastIntent] = useState<IntentId | null>(null);
 
   const statusLabel = useMemo(() => {
-    if (requestState === "calling") return "Calling /intent";
+    if (requestState === "calling") return "Calling Edge Function";
     if (requestState === "speaking") return "Speaking reply";
     if (requestState === "speech_unavailable") return "Speech unavailable";
     if (requestState === "error") return "Function error";
@@ -54,7 +58,7 @@ export function OpsBotConsole() {
     setRequestState("calling");
 
     try {
-      const response = await fetch("/intent", {
+      const response = await fetch(intentFunctionUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -138,8 +142,8 @@ export function OpsBotConsole() {
               return (
                 <Button
                   className={cn(
-                    "h-[92px] w-full justify-start gap-4 rounded-[18px] border border-border bg-background px-4 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] hover:border-[#c9c9c9] hover:bg-background hover:shadow-[0_12px_24px_-22px_rgba(0,0,0,0.55)] active:translate-y-px [&_svg]:size-6",
-                    lastIntent === option.id && "border-foreground bg-background"
+                    "h-[92px] w-full justify-start gap-4 rounded-[18px] border border-border bg-background px-4 text-left shadow-xs transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[#ff5a5f]/20 hover:bg-[#f7f7f7] hover:shadow-[0_12px_24px_-22px_rgba(0,0,0,0.55)] active:translate-y-px [&_svg]:size-6",
+                    lastIntent === option.id && "border-[#ff5a5f]/25 bg-[#f7f7f7]"
                   )}
                   disabled={requestState === "calling"}
                   key={option.id}

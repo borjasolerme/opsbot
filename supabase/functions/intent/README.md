@@ -19,4 +19,16 @@ Response:
 }
 ```
 
-The Next.js app currently uses a matching local `/intent` route so the basic loop works without Supabase credentials.
+Run locally:
+
+```bash
+npm run dev:intent
+```
+
+Local endpoint:
+
+```txt
+http://127.0.0.1:54331/functions/v1/intent
+```
+
+The Next.js app calls this endpoint through `NEXT_PUBLIC_INTENT_FUNCTION_URL`.

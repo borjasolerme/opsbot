@@ -23,7 +23,7 @@ OpsBot is a fixed-table AI front desk for coworkings and events. Visitors intera
 ```txt
 Visitor taps button on the phone web app
 ↓
-Next.js calls /intent
+Next.js calls the Supabase Edge Function /intent
 ↓
 Function returns reply + robot_action
 ↓
@@ -61,12 +61,12 @@ Robot action is mocked first, then connected to Cyberwave
 
 ## Current Vertical Slice
 
-The mocked loop is now implemented locally:
+The mocked loop now uses the local Supabase Edge Function:
 
 ```txt
 iPhone web app button
 ↓
-Next.js /intent route
+Supabase Edge Function /intent
 ↓
 reply + robot_action
 ↓
@@ -75,7 +75,7 @@ browser speech synthesis
 mocked robot action UI
 ```
 
-The Supabase Edge Function contract is mirrored in `supabase/functions/intent/index.ts`, but the local demo does not require Supabase credentials.
+The Next.js app calls `NEXT_PUBLIC_INTENT_FUNCTION_URL`, which defaults to the local Supabase Functions endpoint.
 
 ## Run Locally
 
@@ -91,10 +91,22 @@ Start the Next.js app:
 npm run dev
 ```
 
+In another terminal, start the local Supabase Edge Function:
+
+```bash
+npm run dev:intent
+```
+
 Open:
 
 ```txt
 http://localhost:3000
+```
+
+The frontend sends intent requests to:
+
+```txt
+http://127.0.0.1:54331/functions/v1/intent
 ```
 
 Useful checks:
@@ -150,8 +162,6 @@ opsbot/
 
   app/
     page.tsx
-    intent/
-      route.ts
   components/
     OpsBotConsole.tsx
     ui/

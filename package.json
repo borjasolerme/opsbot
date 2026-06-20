@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:intent": "supabase functions serve --no-verify-jwt",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
